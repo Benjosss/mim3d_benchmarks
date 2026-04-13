@@ -47,7 +47,7 @@ scene.add(fillLight);
 
 // Chargement du modèle
 const loader = new FBXLoader();
-const object = await loader.loadAsync('salle_meca.fbx');
+const object = await loader.loadAsync('fac.fbx');
 object.traverse(child => {
     if (child.isMesh) {
         child.castShadow = true;
