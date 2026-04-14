@@ -1,7 +1,14 @@
 import * as THREE from 'three';
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
+import Benchmark from './Benchmarks.js';
+
+// --- Liste des fichiers à charger ---
+const assets = [
+    "IAE/IAE.gltf",
+    "1_floor_aisle_b/1_floor_aisle_b.gltf"
+];
 
 // --- Écran de chargement ---
 const loadingScreen = document.createElement('div');
@@ -17,16 +24,28 @@ loadingScreen.style.cssText = `
     font-family: sans-serif;
 `;
 loadingScreen.innerHTML = `
-    <p id="loading-label" style="margin-bottom: 12px; font-size: 1rem; opacity: 0.8;">Chargement du modèle...</p>
+    <p id="loading-label" style="margin-bottom: 12px; font-size: 1rem; opacity: 0.8;">
+        Chargement du modèle...
+    </p>
     <div style="width: 300px; height: 6px; background: #333; border-radius: 3px; overflow: hidden;">
         <div id="loading-bar" style="height: 100%; width: 0; background: #4466ff; transition: width 0.1s;"></div>
     </div>
     <p id="loading-percent" style="margin-top: 8px; font-size: 0.85rem; opacity: 0.6;">0%</p>
+    <p id="loading-file" style="margin-top: 4px; font-size: 0.75rem; opacity: 0.4;"></p>
 `;
 document.body.appendChild(loadingScreen);
 
-const loadingBar = document.getElementById('loading-bar');
+const loadingBar     = document.getElementById('loading-bar');
 const loadingPercent = document.getElementById('loading-percent');
+const loadingFile    = document.getElementById('loading-file');
+
+function updateProgress(fileIndex, filePercent) {
+    // Progression globale : chaque fichier vaut une part égale
+    const global = Math.round(((fileIndex + filePercent / 100) / assets.length) * 100);
+    loadingBar.style.width = `${global}%`;
+    loadingPercent.textContent = `${global}%`;
+    loadingFile.textContent = assets[fileIndex];
+}
 
 // --- Scene ---
 const stats = new Stats();
@@ -35,20 +54,20 @@ document.body.appendChild(stats.dom);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a2e);
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
 camera.position.set(0, 10, 30);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
+const benchmark = new Benchmark(renderer, scene, camera);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
-controls.minDistance = 5;
-controls.maxDistance = 100;
 
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
 scene.add(ambientLight);
@@ -56,34 +75,59 @@ scene.add(ambientLight);
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
 dirLight.position.set(10, 20, 10);
 dirLight.castShadow = true;
-dirLight.shadow.mapSize.width = 2048;
-dirLight.shadow.mapSize.height = 2048;
 scene.add(dirLight);
 
-const fillLight = new THREE.PointLight(0x4466ff, 0.8, 100);
-fillLight.position.set(-10, 5, -10);
-scene.add(fillLight);
+// --- Chargement séquentiel ---
+const loader = new GLTFLoader();
+const buildingRoot = new THREE.Group(); // Conteneur unique pour tout le bâtiment
+scene.add(buildingRoot);
 
-// --- Chargement avec progression ---
-const loader = new FBXLoader();
-const object = await loader.loadAsync('salle_meca.fbx', (event) => {
-    if (event.lengthComputable) {
-        const percent = Math.round((event.loaded / event.total) * 100);
-        loadingBar.style.width = `${percent}%`;
-        loadingPercent.textContent = `${percent}%`;
+for (let i = 0; i < assets.length; i++) {
+    try {
+        const gltf = await loader.loadAsync(assets[i], (event) => {
+            const filePercent = event.lengthComputable
+                ? Math.round((event.loaded / event.total) * 100)
+                : 0;
+            updateProgress(i, filePercent);
+        });
+
+        const part = gltf.scene;
+
+        part.traverse(child => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material.map) child.material.map.anisotropy = 16;
+            }
+        });
+
+        buildingRoot.add(part);
+
+        // Diagnostic par partie
+        const box = new THREE.Box3().setFromObject(part);
+        const size = box.getSize(new THREE.Vector3());
+        console.log(`✅ ${assets[i]} — taille :`, size);
+
+    } catch (error) {
+        console.error(`❌ Erreur lors du chargement de ${assets[i]} :`, error);
     }
-});
+}
 
-object.traverse(child => {
-    if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-    }
-});
-object.scale.setScalar(0.1);
-scene.add(object);
+// Centrer la caméra sur le bâtiment complet
+const box = new THREE.Box3().setFromObject(buildingRoot);
+const center = box.getCenter(new THREE.Vector3());
+const size = box.getSize(new THREE.Vector3());
+const maxDim = Math.max(size.x, size.y, size.z);
 
-// Cacher l'écran de chargement
+controls.target.copy(center);
+camera.position.set(center.x, center.y + maxDim * 0.5, center.z + maxDim * 1.5);
+camera.far = maxDim * 10;
+camera.updateProjectionMatrix();
+controls.update();
+
+console.log("🏗️ Bâtiment complet — taille totale :", size);
+
+// Masquer l'écran de chargement
 loadingScreen.style.transition = 'opacity 0.5s';
 loadingScreen.style.opacity = '0';
 setTimeout(() => loadingScreen.remove(), 500);
