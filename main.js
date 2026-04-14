@@ -3,11 +3,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import Benchmark from './Benchmarks.js';
+import {DRACOLoader} from "three/examples/jsm/loaders/DRACOLoader";
 
 // --- Liste des fichiers à charger ---
 const assets = [
-    "IAE/IAE.gltf",
-    "1_floor_aisle_b/1_floor_aisle_b.gltf"
+    "1_floor_aisle_b_jpeg_draco.glb",
 ];
 
 // --- Écran de chargement ---
@@ -64,6 +64,9 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 const benchmark = new Benchmark(renderer, scene, camera);
+const dLoader = new DRACOLoader();
+dLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
+dLoader.setDecoderConfig({type: "js"});
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -72,13 +75,14 @@ controls.dampingFactor = 0.05;
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+const dirLight = new THREE.DirectionalLight(0xffffff, 3);
 dirLight.position.set(10, 20, 10);
 dirLight.castShadow = true;
 scene.add(dirLight);
 
 // --- Chargement séquentiel ---
 const loader = new GLTFLoader();
+loader.setDRACOLoader(dLoader);
 const buildingRoot = new THREE.Group(); // Conteneur unique pour tout le bâtiment
 scene.add(buildingRoot);
 
@@ -100,6 +104,9 @@ for (let i = 0; i < assets.length; i++) {
                 child.castShadow = true;
                 child.receiveShadow = true;
                 if (child.material.map) child.material.map.anisotropy = 16;
+                if (child.material.lightMap) {
+                    child.material.lightMapIntensity = 1.0;
+                }
             }
         });
 
