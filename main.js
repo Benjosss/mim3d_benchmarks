@@ -82,6 +82,8 @@ const loader = new GLTFLoader();
 const buildingRoot = new THREE.Group(); // Conteneur unique pour tout le bâtiment
 scene.add(buildingRoot);
 
+let t0 = performance.now();
+
 for (let i = 0; i < assets.length; i++) {
     try {
         const gltf = await loader.loadAsync(assets[i], (event) => {
@@ -138,6 +140,9 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+let t1 = performance.now();
+console.log("Temps de chargement : " + ((t1 - t0) / 1000).toFixed(4) + "s");
 
 // --- Boucle de rendu ---
 function animate() {
