@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import Stats from 'three/examples/jsm/libs/stats.module.js';
-import Benchmark from './Benchmarks.js';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import {DRACOLoader} from "three/examples/jsm/loaders/DRACOLoader";
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import Stats from 'three/examples/jsm/libs/stats.module.js';
+
+import Benchmark from './Benchmarks.js';
 
 // --- Liste des fichiers à charger ---
 const assets = [
@@ -35,9 +36,9 @@ loadingScreen.innerHTML = `
 `;
 document.body.appendChild(loadingScreen);
 
-const loadingBar     = document.getElementById('loading-bar');
+const loadingBar = document.getElementById('loading-bar');
 const loadingPercent = document.getElementById('loading-percent');
-const loadingFile    = document.getElementById('loading-file');
+const loadingFile = document.getElementById('loading-file');
 
 function updateProgress(fileIndex, filePercent) {
     // Progression globale : chaque fichier vaut une part égale
@@ -57,20 +58,34 @@ scene.background = new THREE.Color(0x1a1a2e);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
 camera.position.set(0, 10, 30);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({antialias: true});
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
+
+// Menu de l'app
+const menuPanel = document.getElementById('menuPanel');
+const startButton = document.getElementById('startButton');
+startButton.addEventListener(
+    'click',
+    function () {
+        controls.lock()
+    },
+    false
+)
+
 const benchmark = new Benchmark(renderer, scene, camera);
 const dLoader = new DRACOLoader();
 dLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
 dLoader.setDecoderConfig({type: "js"});
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.05;
+// Controles FPS
+const controls = new PointerLockControls(camera, renderer.domElement)
+//controls.addEventListener('change', () => console.log("Controls Change"))
+controls.addEventListener('lock', () => (menuPanel.style.display = 'none'))
+controls.addEventListener('unlock', () => (menuPanel.style.display = 'block'))
 
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
 scene.add(ambientLight);
@@ -86,7 +101,7 @@ loader.setDRACOLoader(dLoader);
 const buildingRoot = new THREE.Group(); // Conteneur unique pour tout le bâtiment
 scene.add(buildingRoot);
 
-let t0 = performance.now();
+let t0 = performance.now(); // Timer début du chargement
 
 for (let i = 0; i < assets.length; i++) {
     try {
@@ -124,15 +139,17 @@ for (let i = 0; i < assets.length; i++) {
 
 // Centrer la caméra sur le bâtiment complet
 const box = new THREE.Box3().setFromObject(buildingRoot);
-const center = box.getCenter(new THREE.Vector3());
+// const center = box.getCenter(new THREE.Vector3());
 const size = box.getSize(new THREE.Vector3());
-const maxDim = Math.max(size.x, size.y, size.z);
+// const maxDim = Math.max(size.x, size.y, size.z);
+//
+// camera.position.set(center.x, center.y + maxDim * 0.5, center.z + maxDim * 1.5);
+// camera.far = maxDim * 10;
+// camera.updateProjectionMatrix();
 
-controls.target.copy(center);
-camera.position.set(center.x, center.y + maxDim * 0.5, center.z + maxDim * 1.5);
-camera.far = maxDim * 10;
-camera.updateProjectionMatrix();
-controls.update();
+// Faire spawn le joueur au bon endroit
+const spawnPoint = {x: 85, y: 9, z: -3.1};
+camera.position.set(spawnPoint.x, spawnPoint.y, spawnPoint.z);
 
 console.log("🏗️ Bâtiment complet — taille totale :", size);
 
@@ -141,6 +158,14 @@ loadingScreen.style.transition = 'opacity 0.5s';
 loadingScreen.style.opacity = '0';
 setTimeout(() => loadingScreen.remove(), 500);
 
+// Controls
+const keyMap = {}
+const onDocumentKey = (e) => {
+    keyMap[e.code] = e.type === 'keydown'
+}
+document.addEventListener('keydown', onDocumentKey, false)
+document.addEventListener('keyup', onDocumentKey, false)
+
 // --- Resize ---
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -148,13 +173,32 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-let t1 = performance.now();
+let t1 = performance.now(); // Timer fin du chargement
 console.log("Temps de chargement : " + ((t1 - t0) / 1000).toFixed(4) + "s");
 
 // --- Boucle de rendu ---
+const velocity = 0.05;
 function animate() {
+    requestAnimationFrame(animate)
+    if (keyMap['KeyW'] || keyMap['ArrowUp']) {
+        controls.moveForward(velocity)
+    }
+    if (keyMap['KeyS'] || keyMap['ArrowDown']) {
+        controls.moveForward(-velocity)
+    }
+    if (keyMap['KeyA'] || keyMap['ArrowLeft']) {
+        controls.moveRight(-velocity)
+    }
+    if (keyMap['KeyD'] || keyMap['ArrowRight']) {
+        controls.moveRight(velocity)
+    }
+    if (keyMap['KeyP']) {
+        console.log(camera.position)
+    }
+
+
     stats.update();
-    controls.update();
     renderer.render(scene, camera);
 }
-renderer.setAnimationLoop(animate);
+
+animate();
