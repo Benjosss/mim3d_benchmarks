@@ -39,7 +39,7 @@ loadingScreen.style.cssText = `
     font-family: sans-serif;
 `;
 loadingScreen.innerHTML = `
-    <p style="margin-bottom: 10px;">Initialisation du complexe...</p>
+    <p style="margin-bottom: 10px;">Initialisation de l\'UFR</p>
     <div style="width: 300px; height: 6px; background: #333;">
         <div id="bar" style="height:100%; width:0; background:#4466ff;"></div>
     </div>
