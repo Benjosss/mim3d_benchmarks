@@ -23,12 +23,23 @@
             left: 50%;
             font-size: 32px;
         }
+
+        #statsPanel{
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.5);
+            top: 0;
+            right: 0;
+            padding: 10px;
+        }
     </style>
 </head>
 <body>
 <!--Console de dev mobile-->
 <script src="//cdn.jsdelivr.net/npm/eruda"></script>
 <!--<script>eruda.init();</script>-->
+<div id="statsPanel">
+    <p id="stats"></p>
+</div>
 <div id="menuPanel">
     <button id="startButton">Click to Start</button>
 </div>

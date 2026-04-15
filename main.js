@@ -96,6 +96,7 @@ loader.setDRACOLoader(draco);
 const buildingRoot = new THREE.Group();
 scene.add(buildingRoot);
 
+let nbAssets = 0;
 async function loadAssets() {
     try {
         for (let i = 0; i < CONFIG.assets.length; i++) {
@@ -115,6 +116,7 @@ async function loadAssets() {
                 }
             });
             buildingRoot.add(gltf.scene);
+            nbAssets++;
         }
 
         buildingRoot.scale.setScalar(CONFIG.buildingScale);
@@ -123,7 +125,11 @@ async function loadAssets() {
 
         // --- Fin du chrono ---
         const t1 = performance.now();
+        const res_load = `⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)} secondes. ${nbAssets} assets`
         console.log(`⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)} secondes.`);
+        const statsHTML = document.getElementById('stats');
+        statsHTML.textContent = res_load;
+
 
         loadingScreen.style.display = "none";
         camera.position.copy(playerCapsule.end);
