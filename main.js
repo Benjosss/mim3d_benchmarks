@@ -6,6 +6,7 @@ import Stats from 'three/examples/jsm/libs/stats.module.js';
 import {Octree} from 'three/examples/jsm/math/Octree.js';
 import {Capsule} from 'three/examples/jsm/math/Capsule.js';
 import Benchmark from './Benchmarks.js';
+import jsonParser from "./jsonLoader/jsonParser";
 import {Zone} from './mapManager/Zone.js'
 import {ZoneManager} from './mapManager/ZoneManager'
 import {OctreeHelper} from "three/addons";
@@ -24,48 +25,32 @@ const CONFIG = {
 };
 
 // ================= DÉFINITION DES ZONES =================
-const ZONES = [
-    new Zone({
-        name: 'room1',
-        path: 'room1.glb',
-        adjacentZoneNames: ['room2', 'room4'],
-        type: 'floor',
-        triggerBox: new THREE.Box3(
-            new THREE.Vector3(-7.21, 0.0, -4.0),
-            new THREE.Vector3(7.21, 5.63, 3.9),
-        ),
-    }),
-    new Zone({
-        name: 'room2',
-        path: 'room2.glb',
-        adjacentZoneNames: ['room1', 'room3'],
-        type: 'floor',
-        triggerBox: new THREE.Box3(
-            new THREE.Vector3(-7.21, 0.0, 3.9),
-            new THREE.Vector3(7.21, 5.63, 11.9)
-        ),
-    }),
-    new Zone({
-        name: 'room3',
-        path: 'room3.glb',
-        adjacentZoneNames: ['room2'],
-        type: 'floor',
-        triggerBox: new THREE.Box3(
-            new THREE.Vector3(-7.21, 0.0, 11.9),
-            new THREE.Vector3(7.21, 5.63, 19.8)
-        ),
-    }),
-    new Zone({
-        name: 'room4',
-        path: 'room4.glb',
-        adjacentZoneNames: ['room1'],
-        type: 'floor',
-        triggerBox: new THREE.Box3(
-            new THREE.Vector3(-7.21, 0.0, -11.9),
-            new THREE.Vector3(7.21, 5.63, -3.9),
-        ),
-    }),
-];
+let ZONES = [];
+
+const parser = new jsonParser("data/data.json");
+
+const jsonData = await parser.fetchJSONData();
+
+if (!jsonData) {
+    console.log("Impossible de charger les zones");
+} else {
+    jsonData.forEach((zone) => {
+        ZONES.push(
+            new Zone({
+                name: zone.name,
+                path: zone.path,
+                adjacentZoneNames: zone.adjacentZoneNames || [],
+                type: zone.type,
+                triggerBox: new THREE.Box3(
+                    new THREE.Vector3(...zone.triggerBox.min),
+                    new THREE.Vector3(...zone.triggerBox.max)
+                ),
+            })
+        );
+    });
+}
+
+console.log(ZONES);
 
 // --- Chrono ---
 const t0 = performance.now();
@@ -172,7 +157,7 @@ statsHTML.textContent = res_load;
 
 // ================= ZONE MANAGER =================
 
-const zoneManager = new ZoneManager({ scene, loader: gltfLoader, worldOctree });
+const zoneManager = new ZoneManager({scene, loader: gltfLoader, worldOctree});
 ZONES.forEach(zone => zoneManager.registerZone(zone));
 ZONES.forEach(zone => {
     const helper = new THREE.Box3Helper(zone.triggerBox, 0xffff00);
@@ -180,16 +165,16 @@ ZONES.forEach(zone => {
 });
 
 // Chargement initial — seule la zone de départ est bloquante
-document.getElementById('loading-bar').style.width    = '30%';
+document.getElementById('loading-bar').style.width = '30%';
 document.getElementById('loading-percent').textContent = 'Zone initiale...';
 
 await zoneManager.init(CONFIG.startZone);
 
-document.getElementById('loading-bar').style.width    = '100%';
+document.getElementById('loading-bar').style.width = '100%';
 document.getElementById('loading-percent').textContent = '100%';
 
 loadingScreen.style.transition = 'opacity 0.5s';
-loadingScreen.style.opacity    = '0';
+loadingScreen.style.opacity = '0';
 setTimeout(() => loadingScreen.remove(), 500);
 
 // ================= INPUT (AZERTY) =================
@@ -200,7 +185,7 @@ document.addEventListener('keyup', e => keyMap[e.code] = false);
 document.addEventListener('keydown', e => {
     if (e.code === 'F1') {
         e.preventDefault();
-        CONFIG.debugCapsule   = !CONFIG.debugCapsule;
+        CONFIG.debugCapsule = !CONFIG.debugCapsule;
         capsuleHelper.visible = CONFIG.debugCapsule;
         console.log(`Capsule debug : ${CONFIG.debugCapsule ? 'ON' : 'OFF'}`);
     }
