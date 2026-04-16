@@ -13,16 +13,8 @@ import {OctreeHelper} from "three/addons";
 // ================= CONFIG =================
 const CONFIG = {
     startZone: 'room1',
-    // assets: [
-    //     // "1_floor_aisle_b_jpeg_draco.glb",
-    //     "2_floor_aisle_b_jpeg_draco.glb",
-    //     "stair.glb",
-    //     // "room1.glb",
-    //     // "room2.glb",
-    // ],
     // spawnPoint: new THREE.Vector3(85, 11, -3.1),
     spawnPoint: new THREE.Vector3(0, 11, 0),
-    // buildingScale: 1,
     playerRadius: 0.2,
     playerHeight: 1.0,
     moveSpeed: 5,
@@ -43,7 +35,7 @@ const ZONES = [
         adjacentZoneNames: ['room2', 'room4'],
         type: 'floor',
         triggerBox: new THREE.Box3(
-            new THREE.Vector3(-7.21, 0.0, -4.0), // Min (X, Y, Z)
+            new THREE.Vector3(-7.21, 0.0, -4.0),
             new THREE.Vector3(7.21, 5.63, 3.9),
         ),
     }),
@@ -53,7 +45,7 @@ const ZONES = [
         adjacentZoneNames: ['room1', 'room3'],
         type: 'floor',
         triggerBox: new THREE.Box3(
-            new THREE.Vector3(-7.21, 0.0, 3.9),  // Min
+            new THREE.Vector3(-7.21, 0.0, 3.9),
             new THREE.Vector3(7.21, 5.63, 11.9)
         ),
     }),
@@ -63,7 +55,7 @@ const ZONES = [
         adjacentZoneNames: ['room2'],
         type: 'floor',
         triggerBox: new THREE.Box3(
-            new THREE.Vector3(-7.21, 0.0, 11.9),  // Min
+            new THREE.Vector3(-7.21, 0.0, 11.9),
             new THREE.Vector3(7.21, 5.63, 19.8)
         ),
     }),
@@ -73,7 +65,7 @@ const ZONES = [
         adjacentZoneNames: ['room1'],
         type: 'floor',
         triggerBox: new THREE.Box3(
-            new THREE.Vector3(-7.21, 0.0, -11.9), // Min
+            new THREE.Vector3(-7.21, 0.0, -11.9),
             new THREE.Vector3(7.21, 5.63, -3.9),
         ),
     }),
