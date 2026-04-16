@@ -140,14 +140,6 @@ dLoader.setDecoderConfig({type: "js"});
 const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dLoader);
 
-// --- Fin du chrono ---
-const t1 = performance.now();
-const res_load = `⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)} secondes.`
-console.log(`⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)} secondes.`);
-const statsHTML = document.getElementById('stats');
-statsHTML.textContent = res_load;
-
-
 // ================= ZONE MANAGER =================
 
 const zoneManager = new ZoneManager({scene, loader: gltfLoader, worldOctree});
@@ -169,6 +161,14 @@ document.getElementById('loading-percent').textContent = '100%';
 loadingScreen.style.transition = 'opacity 0.5s';
 loadingScreen.style.opacity = '0';
 setTimeout(() => loadingScreen.remove(), 500);
+
+// --- Fin du chrono ---
+const t1 = performance.now();
+const res_load = `⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)} secondes.`
+console.log(`⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)} secondes.`);
+const statsHTML = document.getElementById('stats');
+statsHTML.textContent = res_load;
+
 
 // ================= INPUT (AZERTY) =================
 const keyMap = {};
