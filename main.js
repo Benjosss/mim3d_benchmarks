@@ -23,11 +23,7 @@ const CONFIG = {
     debugOctree: false
 };
 
-// ============================================================
-// DÉFINITION DES ZONES
-// Utilise la touche P en jeu pour relever les coordonnées
-// et ajuster les triggerBox à ton bâtiment réel.
-// ============================================================
+// ================= DÉFINITION DES ZONES =================
 const ZONES = [
     new Zone({
         name: 'room1',
@@ -112,7 +108,7 @@ scene.add(dirLight);
 // ================= TOOLS =================
 const stats = new Stats();
 document.body.appendChild(stats.dom);
-const benchmark = new Benchmark(renderer, scene, camera);
+new Benchmark(renderer, scene, camera);
 
 // ================= PHYSIQUE =================
 const clock = new THREE.Clock();
