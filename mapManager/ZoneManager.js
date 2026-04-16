@@ -114,6 +114,15 @@ export class ZoneManager {
 
         // Affichage de la nouvelle zone
         this._showZone(newZone);
+
+        // Affichage de toutes les zones adjacentes à la nouvelle zone
+        for (const adjName of newZone.adjacentZoneNames) {
+            const adjZone = this.zones.get(adjName);
+            if (adjZone && adjZone.isLoaded) {
+                this._showZone(adjZone);
+            }
+        }
+
         this.currentZone = newZone;
 
         // Rebuild de l'Octree avec les zones actuellement visibles
@@ -177,11 +186,17 @@ export class ZoneManager {
         while(this._loadQueue.length > 0) {
             const zone = this._loadQueue.shift();
 
-            // Laisse le contrôle au navigateur entre chaque chargemen
+            // Laisse le contrôle au navigateur entre chaque chargement
             await new Promise(resolve => setTimeout(resolve, 0));
 
             if(!zone.isLoaded && !zone.isLoading){
                 await this._loadZone(zone); // Chargement de la zone
+
+                // Affichage de la zone si elle est adjacente à la zone courante
+                if (this.currentZone && this.currentZone.adjacentZoneNames.includes(zone.name)) {
+                    this._showZone(zone);
+                    this._rebuildOctree(); // On met à jour l'octree pour pouvoir y marcher
+                }
             }
         }
 
@@ -215,7 +230,7 @@ export class ZoneManager {
                 }
 
                 // Déchargement complètement les zones vraiment loin
-                const wasAdjacentToPrevious = previousZone.adjacentZoneNames.include(name);
+                const wasAdjacentToPrevious = previousZone.adjacentZoneNames.includes(name);
                 if(!wasAdjacentToPrevious){
                     zone.unload(this.scene);
                     this.managedZones.delete(name);

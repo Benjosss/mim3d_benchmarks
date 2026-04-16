@@ -40,7 +40,7 @@ const ZONES = [
     new Zone({
         name: 'room1',
         path: 'room1.glb',
-        adjacentZoneNames: ['room2'],
+        adjacentZoneNames: ['room2', 'room4'],
         type: 'floor',
         triggerBox: new THREE.Box3(
             new THREE.Vector3(-7.21, 0.0, -4.0), // Min (X, Y, Z)
@@ -50,11 +50,31 @@ const ZONES = [
     new Zone({
         name: 'room2',
         path: 'room2.glb',
-        adjacentZoneNames: ['room1'],
+        adjacentZoneNames: ['room1', 'room3'],
         type: 'floor',
         triggerBox: new THREE.Box3(
             new THREE.Vector3(-7.21, 0.0, 3.9),  // Min
             new THREE.Vector3(7.21, 5.63, 11.9)
+        ),
+    }),
+    new Zone({
+        name: 'room3',
+        path: 'room3.glb',
+        adjacentZoneNames: ['room2'],
+        type: 'floor',
+        triggerBox: new THREE.Box3(
+            new THREE.Vector3(-7.21, 0.0, 11.9),  // Min
+            new THREE.Vector3(7.21, 5.63, 19.8)
+        ),
+    }),
+    new Zone({
+        name: 'room4',
+        path: 'room4.glb',
+        adjacentZoneNames: ['room1'],
+        type: 'floor',
+        triggerBox: new THREE.Box3(
+            new THREE.Vector3(-7.21, 0.0, -11.9), // Min
+            new THREE.Vector3(7.21, 5.63, -3.9),
         ),
     }),
 ];
