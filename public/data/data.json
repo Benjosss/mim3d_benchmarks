@@ -1,42 +1,32 @@
 [
   {
-    "name": "room1",
-    "path": "models/room1.glb",
+    "name": "floor1",
+    "path": "models/1_floor_aisle_b_jpeg_draco.glb",
     "type": "floor",
-    "adjacentZoneNames": ["room2", "room4"],
+    "adjacentZoneNames": ["stairscase1"],
     "triggerBox": {
-      "min": [-7.21, 0.0, -4.0],
-      "max": [7.21, 5.63, 3.9]
+      "max": [89, 11, -1.432],
+      "min": [71.353, 7, -75.368]
     }
   },
   {
-    "name": "room2",
-    "path": "models/room2.glb",
+    "name": "floor2",
+    "path": "models/2_floor_aisle_b_jpeg_draco.glb",
     "type": "floor",
-    "adjacentZoneNames": ["room1", "room3"],
+    "adjacentZoneNames": ["stairscase1"],
     "triggerBox": {
-      "min": [-7.21, 0.0, 3.9],
-      "max": [7.21, 5.63, 11.9]
+      "max": [89, 19.111, -1.432],
+      "min": [71.353, 11.451, -75.368]
     }
   },
   {
-    "name": "room3",
-    "path": "models/room3.glb",
+    "name": "stairscase1",
+    "path": "models/stair.glb",
     "type": "floor",
-    "adjacentZoneNames": ["room2"],
+    "adjacentZoneNames": ["floor1", "floor2"],
     "triggerBox": {
-      "min": [-7.21, 0.0, 11.9],
-      "max": [7.21, 5.63, 19.8]
-    }
-  },
-  {
-    "name": "room4",
-    "path": "models/room4.glb",
-    "type": "floor",
-    "adjacentZoneNames": ["room1"],
-    "triggerBox": {
-      "min": [-7.21, 0.0, -11.9],
-      "max": [7.21, 5.63, -3.9]
+      "min": [75, 9, -25],
+      "max": [78, 15, -18]
     }
   }
 ]

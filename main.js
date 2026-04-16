@@ -9,19 +9,17 @@ import Benchmark from './Benchmarks.js';
 import jsonParser from "./jsonLoader/jsonParser";
 import {Zone} from './mapManager/Zone.js'
 import {ZoneManager} from './mapManager/ZoneManager'
-import {OctreeHelper} from "three/addons";
 
 // ================= CONFIG =================
 const CONFIG = {
-    startZone: 'room1',
-    // spawnPoint: new THREE.Vector3(85, 11, -3.1),
-    spawnPoint: new THREE.Vector3(0, 11, 0),
+    startZone: 'floor2',
+    spawnPoint: new THREE.Vector3(85, 13, -3.1),
+    // spawnPoint: new THREE.Vector3(0, 11, 0),
     playerRadius: 0.2,
     playerHeight: 1.0,
     moveSpeed: 5,
     gravity: 30,
-    debugCapsule: true,
-    debugOctree: false
+    debugCapsule: false,
 };
 
 // ================= DÉFINITION DES ZONES =================
@@ -119,11 +117,6 @@ sphereBot.position.y = -CONFIG.playerHeight / 2;
 capsuleHelper.add(bodyMesh, sphereTop, sphereBot);
 capsuleHelper.visible = CONFIG.debugCapsule;
 scene.add(capsuleHelper);
-
-// Debug Octree
-const octreeHelper = new OctreeHelper(worldOctree);
-octreeHelper.visible = CONFIG.debugOctree;
-scene.add(octreeHelper);
 
 // ================= CONTROLS =================
 const menuPanel = document.getElementById('menuPanel');
