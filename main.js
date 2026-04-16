@@ -6,18 +6,58 @@ import Stats from 'three/examples/jsm/libs/stats.module.js';
 import {Octree} from 'three/examples/jsm/math/Octree.js';
 import {Capsule} from 'three/examples/jsm/math/Capsule.js';
 import Benchmark from './Benchmarks.js';
+import {Zone} from './mapManager/Zone.js'
+import {ZoneManager} from './mapManager/ZoneManager'
+import {OctreeHelper} from "three/addons";
 
 // ================= CONFIG =================
 const CONFIG = {
-    assets: [
-        // "1_floor_aisle_b_jpeg_draco.glb",
-        "2_floor_aisle_b_jpeg_draco.glb", "stair.glb",
-        // "room1.glb",
-        // "room2.glb",
-    ],
-    spawnPoint: new THREE.Vector3(85, 11, -3.1), // spawnPoint: new THREE.Vector3(0, 11, 0),
-    buildingScale: 1, playerRadius: 0.25, playerHeight: 1.2, moveSpeed: 6, gravity: 30
+    startZone: 'room1',
+    // assets: [
+    //     // "1_floor_aisle_b_jpeg_draco.glb",
+    //     "2_floor_aisle_b_jpeg_draco.glb",
+    //     "stair.glb",
+    //     // "room1.glb",
+    //     // "room2.glb",
+    // ],
+    // spawnPoint: new THREE.Vector3(85, 11, -3.1),
+    spawnPoint: new THREE.Vector3(0, 11, 0),
+    // buildingScale: 1,
+    playerRadius: 0.2,
+    playerHeight: 1.0,
+    moveSpeed: 5,
+    gravity: 30,
+    debugCapsule: true,
+    debugOctree: false
 };
+
+// ============================================================
+// DÉFINITION DES ZONES
+// Utilise la touche P en jeu pour relever les coordonnées
+// et ajuster les triggerBox à ton bâtiment réel.
+// ============================================================
+const ZONES = [
+    new Zone({
+        name: 'room1',
+        path: 'room1.glb',
+        adjacentZoneNames: ['room2'],
+        type: 'floor',
+        triggerBox: new THREE.Box3(
+            new THREE.Vector3(-7.21, 0.0, -4.0), // Min (X, Y, Z)
+            new THREE.Vector3(7.21, 5.63, 3.9),
+        ),
+    }),
+    new Zone({
+        name: 'room2',
+        path: 'room2.glb',
+        adjacentZoneNames: ['room1'],
+        type: 'floor',
+        triggerBox: new THREE.Box3(
+            new THREE.Vector3(-7.21, 0.0, 3.9),  // Min
+            new THREE.Vector3(7.21, 5.63, 11.9)
+        ),
+    }),
+];
 
 // --- Chrono ---
 const t0 = performance.now();
@@ -25,26 +65,19 @@ const t0 = performance.now();
 // ================= LOADING SCREEN UI =================
 const loadingScreen = document.createElement('div');
 loadingScreen.style.cssText = `
-    position: fixed; inset: 0;
-    background: #1a1a2e;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    color: white;
-    font-family: sans-serif;
+    position: fixed; inset: 0; background: #1a1a2e;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 100; color: white; font-family: sans-serif;
 `;
 loadingScreen.innerHTML = `
-    <p style="margin-bottom: 10px;">Initialisation de l\'UFR</p>
-    <div style="width: 300px; height: 6px; background: #333;">
-        <div id="bar" style="height:100%; width:0; background:#4466ff;"></div>
+    <p style="margin-bottom: 12px; font-size: 1rem; opacity: 0.8;">Chargement...</p>
+    <div style="width: 300px; height: 6px; background: #333; border-radius: 3px; overflow: hidden;">
+        <div id="loading-bar" style="height:100%; width:0; background:#4466ff; transition:width 0.3s;"></div>
     </div>
-    <p id="percent">0%</p>
+    <p id="loading-percent" style="margin-top: 8px; font-size: 0.85rem; opacity: 0.6;">0%</p>
 `;
 document.body.appendChild(loadingScreen);
-const bar = document.getElementById("bar");
-const percent = document.getElementById("percent");
 
 // ================= SCENE SETUP =================
 const scene = new THREE.Scene();
@@ -53,14 +86,51 @@ scene.background = new THREE.Color(0x1a1a2e);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
 const renderer = new THREE.WebGLRenderer({antialias: true});
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
 scene.add(new THREE.AmbientLight(0xffffff, 1));
+const dirLight = new THREE.DirectionalLight(0xffffff, 3);
+dirLight.position.set(10, 20, 10);
+dirLight.castShadow = true;
+scene.add(dirLight);
 
 // ================= TOOLS =================
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 const benchmark = new Benchmark(renderer, scene, camera);
+
+// ================= PHYSIQUE =================
+const clock = new THREE.Clock();
+const worldOctree = new Octree();
+
+const playerCapsule = new Capsule(
+    CONFIG.spawnPoint.clone(),
+    CONFIG.spawnPoint.clone().add(new THREE.Vector3(0, CONFIG.playerHeight, 0)),
+    CONFIG.playerRadius
+);
+const playerVelocity = new THREE.Vector3();
+const playerDirection = new THREE.Vector3();
+let playerOnFloor = false;
+
+// Debug capsule
+const debugMat = new THREE.MeshBasicMaterial({color: 0xff0000, wireframe: true});
+const capsuleHelper = new THREE.Group();
+const bodyMesh = new THREE.Mesh(new THREE.CylinderGeometry(CONFIG.playerRadius, CONFIG.playerRadius, CONFIG.playerHeight, 8), debugMat);
+const sphereTop = new THREE.Mesh(new THREE.SphereGeometry(CONFIG.playerRadius, 8, 8), debugMat);
+const sphereBot = new THREE.Mesh(new THREE.SphereGeometry(CONFIG.playerRadius, 8, 8), debugMat);
+sphereTop.position.y = CONFIG.playerHeight / 2;
+sphereBot.position.y = -CONFIG.playerHeight / 2;
+capsuleHelper.add(bodyMesh, sphereTop, sphereBot);
+capsuleHelper.visible = CONFIG.debugCapsule;
+scene.add(capsuleHelper);
+
+// Debug Octree
+const octreeHelper = new OctreeHelper(worldOctree);
+octreeHelper.visible = CONFIG.debugOctree;
+scene.add(octreeHelper);
 
 // ================= CONTROLS =================
 const menuPanel = document.getElementById('menuPanel');
@@ -75,228 +145,73 @@ controls.addEventListener('unlock', () => {
     if (menuPanel) menuPanel.style.display = 'block';
 });
 
-// ================= PHYSIQUE =================
-const worldOctree = new Octree();
-const clock = new THREE.Clock();
-const playerVelocity = new THREE.Vector3();
-const playerDirection = new THREE.Vector3();
-let playerOnFloor = false;
-
-const playerCapsule = new Capsule(new THREE.Vector3(CONFIG.spawnPoint.x, CONFIG.spawnPoint.y + 0.35, CONFIG.spawnPoint.z), new THREE.Vector3(CONFIG.spawnPoint.x, CONFIG.spawnPoint.y + 0.35 + CONFIG.playerHeight, CONFIG.spawnPoint.z), CONFIG.playerRadius);
 
 // ================= LOAD ASSETS =================
-const loader = new GLTFLoader();
-const draco = new DRACOLoader();
-draco.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
-loader.setDRACOLoader(draco);
+const dLoader = new DRACOLoader();
+dLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
+dLoader.setDecoderConfig({type: "js"});
 
-const buildingRoot = new THREE.Group();
-scene.add(buildingRoot);
+const gltfLoader = new GLTFLoader();
+gltfLoader.setDRACOLoader(dLoader);
 
-let nbAssets = 0;
-
-let model = [];
-
-async function loadAssets() {
-    try {
-        for (let i = 0; i < CONFIG.assets.length; i++) {
-            const gltf = await loader.loadAsync(CONFIG.assets[i], (e) => {
-                if (e.lengthComputable) {
-                    const p = Math.round((e.loaded / e.total) * 100);
-                    bar.style.width = p + "%";
-                    percent.textContent = p + "%";
-                }
-            });
-
-            gltf.scene.traverse(child => {
-                if (child.isMesh) {
-                    child.material.side = THREE.DoubleSide;
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                }
-            });
-            model.push(gltf.scene);
-            buildingRoot.add(gltf.scene);
-            nbAssets++;
-        }
-
-        buildingRoot.scale.setScalar(CONFIG.buildingScale);
-        buildingRoot.updateMatrixWorld(true);
-        worldOctree.fromGraphNode(buildingRoot);
-
-        // --- Fin du chrono ---
-        const t1 = performance.now();
-        const res_load = `⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)} secondes. ${nbAssets} assets`
-        console.log(`⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)} secondes.`);
-        const statsHTML = document.getElementById('stats');
-        statsHTML.textContent = res_load;
+// --- Fin du chrono ---
+const t1 = performance.now();
+const res_load = `⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)} secondes.`
+console.log(`⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)} secondes.`);
+const statsHTML = document.getElementById('stats');
+statsHTML.textContent = res_load;
 
 
-        loadingScreen.style.display = "none";
-        camera.position.copy(playerCapsule.end);
+// ================= ZONE MANAGER =================
 
-    } catch (error) {
-        console.error("Erreur critique au chargement :", error);
-    }
-}
+const zoneManager = new ZoneManager({ scene, loader: gltfLoader, worldOctree });
+ZONES.forEach(zone => zoneManager.registerZone(zone));
+ZONES.forEach(zone => {
+    const helper = new THREE.Box3Helper(zone.triggerBox, 0xffff00);
+    scene.add(helper);
+});
 
-async function loadAssetsByPath(path) {
-    try {
-        console.log("⏳ Chargement de la zone suivante...");
+// Chargement initial — seule la zone de départ est bloquante
+document.getElementById('loading-bar').style.width    = '30%';
+document.getElementById('loading-percent').textContent = 'Zone initiale...';
 
-        const gltf = await loader.loadAsync(path);
+await zoneManager.init(CONFIG.startZone);
 
-        gltf.scene.traverse(child => {
-            if (child.isMesh) {
-                child.material.side = THREE.DoubleSide;
-                child.castShadow = true;
-                child.receiveShadow = true;
-            }
-        });
+document.getElementById('loading-bar').style.width    = '100%';
+document.getElementById('loading-percent').textContent = '100%';
 
-        buildingRoot.add(gltf.scene);
-
-        console.log("📦 Ajout scène terminé");
-
-        const tempRoot = new THREE.Group();
-        tempRoot.add(buildingRoot.clone());
-
-        let nodes = [];
-        tempRoot.traverse(n => nodes.push(n));
-
-        let i = 0;
-
-        function stepOctree() {
-            const start = performance.now();
-
-            // limite 2ms par frame => évite freeze
-            while (i < nodes.length && performance.now() - start < 2) {
-                i++;
-            }
-
-            if (i < nodes.length) {
-                requestAnimationFrame(stepOctree);
-            } else {
-                console.log("🌳 Octree rebuild...");
-                const newOctree = new Octree();
-                buildingRoot.add(gltf.scene);
-
-
-                requestAnimationFrame(() => {
-                    buildOctreeIncremental(buildingRoot);
-                });
-
-                // fusion manuelle (approche simple)
-                worldOctree.triangles.push(...newOctree.triangles);
-                worldOctree.build();
-                console.log("✅ Octree OK");
-            }
-        }
-
-        requestAnimationFrame(stepOctree);
-
-        // ===============================
-        // 🧹 CLEANUP DIFFÉRÉ
-        // ===============================
-        requestIdleCallback(() => {
-            if (model[0]) {
-                console.log("🧹 Ancienne zone supprimée");
-            }
-        });
-
-        console.log("✅ Zone chargée :", path);
-
-    } catch (error) {
-        console.error("Erreur lors du lazy loading :", error);
-    }
-}
-
-function buildOctreeIncremental(root) {
-    const nodes = [];
-    root.traverse(n => {
-        if (n.isMesh) nodes.push(n);
-    });
-
-    let i = 0;
-
-    function step() {
-        const start = performance.now();
-
-        while (i < nodes.length && performance.now() - start < 1.5) {
-            const mesh = nodes[i];
-            worldOctree.fromGraphNode(mesh); // incrémental (approximation)
-            i++;
-        }
-
-        if (i < nodes.length) {
-            requestAnimationFrame(step);
-        } else {
-            console.log("Octree ready");
-        }
-    }
-
-    requestAnimationFrame(step);
-}
-
-async function loadDecorations() {
-    const gltf = await loader.loadAsync("chairs.glb");
-    const model = gltf.scene;
-
-    model.traverse(child => {
-        if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            child.material.side = THREE.DoubleSide;
-            child.material.flatShading = false;
-        }
-    });
-
-    scene.add(model);
-}
-
-loadAssets();
-// loadDecorations();
-
-
-// ================= TRIGGER ZONE =================
-const triggerZone = new THREE.Box3(new THREE.Vector3(75, 9, -21),
-    new THREE.Vector3(78, 13, -18)
-);
-
-
-// Optionnel : Visualiser la zone de trigger
-const helper = new THREE.Box3Helper(triggerZone, 0xffff00);
-scene.add(helper);
-
-// --- 3. LOGIQUE DE DETECTION ---
-let isInside = false;
-
-function checkTrigger() {
-    if (triggerZone.containsPoint(playerCapsule.start)) {
-        if (!isInside) {
-            console.log("🚀 Entrée dans la zone : Lancement du Lazy Loading...");
-            isInside = true;
-            triggerAction();
-        }
-    } else {
-        if (isInside) {
-            console.log("👋 Sortie de la zone");
-            isInside = false;
-        }
-    }
-}
-
-function triggerAction() {
-    loadAssetsByPath("1_floor_aisle_b_jpeg_draco.glb");
-}
-
+loadingScreen.style.transition = 'opacity 0.5s';
+loadingScreen.style.opacity    = '0';
+setTimeout(() => loadingScreen.remove(), 500);
 
 // ================= INPUT (AZERTY) =================
 const keyMap = {};
 document.addEventListener('keydown', e => keyMap[e.code] = true);
 document.addEventListener('keyup', e => keyMap[e.code] = false);
 
-// ================= COLLISION ENGINE =================
+document.addEventListener('keydown', e => {
+    if (e.code === 'F1') {
+        e.preventDefault();
+        CONFIG.debugCapsule   = !CONFIG.debugCapsule;
+        capsuleHelper.visible = CONFIG.debugCapsule;
+        console.log(`Capsule debug : ${CONFIG.debugCapsule ? 'ON' : 'OFF'}`);
+    }
+    if (e.code === 'F2') {
+        e.preventDefault();
+        zoneManager.getStatus(); // Affiche le tableau des zones dans la console
+    }
+});
+
+// ================= RESIZE =================
+
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ================= PHYSIQUE =================
 function playerCollisions() {
     const result = worldOctree.capsuleIntersect(playerCapsule);
     playerOnFloor = false;
@@ -329,7 +244,7 @@ function getSideVector() {
     return playerDirection;
 }
 
-// ================= MAIN LOOP =================
+// ================= BOUCLE DE RENDU =================
 function animate() {
     const deltaTime = Math.min(0.05, clock.getDelta());
 
@@ -353,16 +268,26 @@ function animate() {
         playerCollisions();
 
         camera.position.copy(playerCapsule.end);
+
+        // ZoneManager : détection de transition à chaque frame
+        zoneManager.update(camera.position);
+
+        if (CONFIG.debugCapsule) {
+            capsuleHelper.position.copy(
+                playerCapsule.start.clone().lerp(playerCapsule.end, 0.5)
+            );
+        }
     }
-    checkTrigger();
+
+    // P : log position + zone courante
+    if (keyMap['KeyP']) {
+        console.log("📍 Position :", camera.position.clone());
+        console.log("🗺️  Zone actuelle :", zoneManager.currentZone?.name ?? 'aucune');
+    }
+
     stats.update();
     renderer.render(scene, camera);
 }
 
 renderer.setAnimationLoop(animate);
 
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
