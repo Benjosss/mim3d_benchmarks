@@ -1,18 +1,17 @@
-import * as THREE from "three";
-import {Octree} from 'three/examples/jsm/math/Octree.js'
-
 export class ZoneManager {
-    constructor({scene, loader, worldOctree, unloadDistance = 3}) {
+
+    constructor({scene, loader, colliderMeshes, unloadDistance = 3}) {
         this.scene = scene;                     // Scène
         this.loader = loader;                   // GLTF Loader
-        this.worldOctree = worldOctree;         // Octree
         this.unloadDistance = unloadDistance;   // Distance de déchargement en nombre de zones
+        this.colliderMeshes = colliderMeshes; // Tableau partagé avec main.js pour ajouter/retirer les meshs selon les zones visibles
         this.zones = new Map();                 // Zones administrées
         this.currentZone = null;                // Zone courant de l'utilisateur
         this.managedZones = new Set();          // Zones dont le chargement est en cours ou terminé
         this._transitioning = false;            // Transition unique
         this._loadQueue = [];                   // File d'attente des chargments
         this._isProcessingQueue = false;        // Status file d'attente
+        this._rebuildScheduled = false;         // Rebuild différé
     }
 
     // =====================================================
@@ -38,14 +37,13 @@ export class ZoneManager {
     }
 
     /**
-     *
-     * @param startZoneName
-     * @returns {Promise<void>}
+     * Charge la zone de départ (bloquant) puis précharge les adjacentes.
+     * @param {string} startZoneName
      */
-    async init(startZoneName){
+    async init(startZoneName) {
         const startZone = this.zones.get(startZoneName); // Récupération de la zone
 
-        if(!startZone){
+        if (!startZone) {
             console.error(`Zone de départ ${startZoneName} introuvable.`); // Zone non trouvée dans le manager
             return;
         }
@@ -56,7 +54,9 @@ export class ZoneManager {
         await this._loadZone(startZone);
         this._showZone(startZone);
         this.currentZone = startZone;
-        this._rebuildOctree();
+
+        // Premier rebuild accepté bloquant ici
+        this._rebuildColliders();
 
         // Chargement des zones adjacentes en arrière-plan (non bloquant)
         this._queueAdjacentZones(startZone);
@@ -68,9 +68,9 @@ export class ZoneManager {
     // =====================================================
 
     _detectZoneChange(playerPosition) {
-        if(!this.currentZone) return;
+        if (!this.currentZone) return;
 
-        if(this.currentZone.isPointInside(playerPosition)) return; // Le joueur est dans sa zone actuelle
+        if (this.currentZone.isPointInside(playerPosition)) return; // Le joueur est dans sa zone actuelle
 
         // Recherche dans quelle zone adjacente il se trouve
         for (const adjName of this.currentZone.adjacentZoneNames) {
@@ -103,38 +103,40 @@ export class ZoneManager {
         if (newZone === this.currentZone) return; // Zone actuelle
         this._transitioning = true; // Début de la transition
 
-        const previousZone = this.currentZone;
-        console.log(`Transition : "${previousZone?.name}" vers "${newZone.name}"`);
+        try {
+            const previousZone = this.currentZone;
+            console.log(`Transition : "${previousZone?.name}" → "${newZone.name}"`);
 
-        // Zone pas encore chargée, attente sans blocage
-        if (!newZone.isLoaded) {
-            console.warn(`Zone "${newZone.name}" pas encore prête...`);
-            await this._loadZone(newZone);
-        }
-
-        // Affichage de la nouvelle zone
-        this._showZone(newZone);
-
-        // Affichage de toutes les zones adjacentes à la nouvelle zone
-        for (const adjName of newZone.adjacentZoneNames) {
-            const adjZone = this.zones.get(adjName);
-            if (adjZone && adjZone.isLoaded) {
-                this._showZone(adjZone);
+            // Zone pas encore chargée, attente sans blocage
+            if (!newZone.isLoaded) {
+                console.warn(`Zone "${newZone.name}" pas encore prête...`);
+                await this._loadZone(newZone);
             }
+
+            // Affichage de la nouvelle zone
+            this._showZone(newZone);
+            // Affichage de toutes les zones adjacentes à la nouvelle zone
+            for (const adjName of newZone.adjacentZoneNames) {
+                const adjZone = this.zones.get(adjName);
+                if (adjZone?.isLoaded) this._showZone(adjZone);
+            }
+
+            this.currentZone = newZone;
+
+            // Mise à jour différée du tableau de colliders
+            this._scheduleColliderRebuild();
+
+            // Déchargement des zones trop éloignées (non bloquant)
+            this._scheduleUnloadFarZones(previousZone);
+
+            // Préchargement des nouvelles zones adjacentes en arrière-plan
+            this._queueAdjacentZones(newZone);
+
+        } catch (e) {
+            console.error('Erreur lors de la transition :', e);
+        } finally {
+            this._transitioning = false; // Fin de la transition
         }
-
-        this.currentZone = newZone;
-
-        // Rebuild de l'Octree avec les zones actuellement visibles
-        this._rebuildOctree();
-
-        // Déchargement des zones trop éloignées (non bloquant)
-        this._scheduleUnloadFarZones(previousZone);
-
-        // Préchargement des nouvelles zones adjacentes en arrière-plan
-        this._queueAdjacentZones(newZone);
-
-        this._transitioning = false; // Fin de la transition
     }
 
     // =====================================================
@@ -147,8 +149,8 @@ export class ZoneManager {
      * @returns {Promise<void>}
      * @private
      */
-    async _loadZone(zone){
-        if(zone.isLoaded || zone.isLoading) return; // Zone déjà traitée ou en cours de traitement
+    async _loadZone(zone) {
+        if (zone.isLoaded || zone.isLoading) return; // Zone déjà traitée ou en cours de traitement
         await zone.load(this.loader); // Chargement de la zone
         this.managedZones.add(zone.name); // Ajout aux zones managées (en cours de chargement ou chargées)
     }
@@ -160,12 +162,12 @@ export class ZoneManager {
      * @private
      */
     _queueAdjacentZones(zone) {
-        for(const adjacentName of zone.adjacentZoneNames){
+        for (const adjacentName of zone.adjacentZoneNames) {
             const adjacentZone = this.zones.get(adjacentName);
-            if(!adjacentZone) continue; // Zone introuvable
-            if(adjacentZone.isLoaded || adjacentZone.isLoading) continue; // Zone déjà traitée ou en cours de chargement
+            if (!adjacentZone) continue; // Zone introuvable
+            if (adjacentZone.isLoaded || adjacentZone.isLoading) continue; // Zone déjà traitée ou en cours de chargement
 
-            if(this._loadQueue.includes(adjacentZone)) continue; // Zone déjà dans la file d'attente
+            if (this._loadQueue.includes(adjacentZone)) continue; // Zone déjà dans la file d'attente
 
             this._loadQueue.push(adjacentZone); // Ajout à la file d'attente
             console.log(`Zone ${adjacentName} ajoutée à la file d'attente de préchargement.`);
@@ -180,22 +182,23 @@ export class ZoneManager {
      * @private
      */
     async _processQueue() {
-        if(this._isProcessingQueue) return; // File d'attente déjà en cours de traitement
+        if (this._isProcessingQueue) return; // File d'attente déjà en cours de traitement
         this._isProcessingQueue = true; // Début du traitement
 
-        while(this._loadQueue.length > 0) {
+        while (this._loadQueue.length > 0) {
             const zone = this._loadQueue.shift();
 
             // Laisse le contrôle au navigateur entre chaque chargement
             await new Promise(resolve => setTimeout(resolve, 0));
 
-            if(!zone.isLoaded && !zone.isLoading){
+            if (!zone.isLoaded && !zone.isLoading) {
                 await this._loadZone(zone); // Chargement de la zone
 
                 // Affichage de la zone si elle est adjacente à la zone courante
-                if (this.currentZone && this.currentZone.adjacentZoneNames.includes(zone.name)) {
+                if (this.currentZone?.adjacentZoneNames.includes(zone.name)) {
                     this._showZone(zone);
-                    this._rebuildOctree(); // On met à jour l'octree pour pouvoir y marcher
+                    // Mise à jour différée
+                    this._scheduleColliderRebuild();
                 }
             }
         }
@@ -211,8 +214,8 @@ export class ZoneManager {
      */
     _scheduleUnloadFarZones(previousZone) {
         // Traitement différent (non bloquant)
-        setTimeout(()=>{
-            if(!previousZone) return; // Zone précédente introuvable
+        setTimeout(() => {
+            if (!previousZone) return; // Zone précédente introuvable
 
             // Garde en mémoire les noms des zones
             const keepNames = new Set([
@@ -220,74 +223,88 @@ export class ZoneManager {
                 ...this.currentZone.adjacentZoneNames,
             ]);
 
-            for(const [name, zone] of this.zones) {
-                if(keepNames.has(name)) continue;
-                if(!zone.isLoaded && !zone.isVisible) continue;
+            for (const [name, zone] of this.zones) {
+                if (keepNames.has(name)) continue;
+                if (!zone.isLoaded && !zone.isVisible) continue;
 
                 // Masquer les zones adjacentes à la précédente, mais pas à l'actuelle
-                if(zone.isVisible){
+                if (zone.isVisible) {
                     zone.hide(this.scene);
                 }
 
                 // Déchargement complètement les zones vraiment loin
                 const wasAdjacentToPrevious = previousZone.adjacentZoneNames.includes(name);
-                if(!wasAdjacentToPrevious){
+                if (!wasAdjacentToPrevious) {
                     zone.unload(this.scene);
                     this.managedZones.delete(name);
                 }
             }
 
-            // Rebuild du Octree après le nettoyage
-            this._rebuildOctree();
+            // Mise à jour après nettoyage
+            this._scheduleColliderRebuild();
+
         }, 100); // Délais de 100ms
     }
 
     _showZone(zone) {
-        if(!zone.isLoaded) return; // La zone n'est pas chargée
+        if (!zone.isLoaded) return; // La zone n'est pas chargée
         zone.show(this.scene); // Affichage de la zone
 
     }
 
     // =====================================================
-    // OCTREE
+    // BVH — GESTION DU TABLEAU DE COLLIDERS
     // =====================================================
 
     /**
-     * Reconstruit l'Octree depuis toutes les zones visibles.
-     * Appelé uniquement lors des transitions
-     * @private
+     * Planifie une mise à jour du tableau colliderMeshes hors de la frame courante.
+     * Les multiples appels sont fusionnés en un seul rebuild.
      */
-    _rebuildOctree() {
-        this.worldOctree.clear?.(); // Nettoyage de l'Octree du monde s'il existe
+    _scheduleColliderRebuild() {
+        if (this._rebuildScheduled) return;
+        this._rebuildScheduled = true;
 
-        // Fallback si clear n'existe pas dans la version de THREEJS
-        try{ this.worldOctree.clear(); }
-        catch {}
+        setTimeout(() => {
+            this._rebuildColliders();
+            this._rebuildScheduled = false;
+        }, 0);
+    }
 
-        let count = 0;
-        for(const [,zone] of this.zones) {
-            if(zone.isVisible && zone.content){
-                zone.content.updateMatrixWorld(true);
-                this.worldOctree.fromGraphNode(zone.content);
-                count++;
+    /**
+     * Reconstruit le tableau colliderMeshes depuis les zones visibles.
+     */
+    _rebuildColliders() {
+        // Vide le tableau partagé en place (sans recréer la référence)
+        this.colliderMeshes.length = 0;
+
+        let totalMeshes = 0;
+        for (const [, zone] of this.zones) {
+            if (zone.isVisible && zone.colliderMeshes?.length) {
+                for (const mesh of zone.colliderMeshes) {
+                    // updateMatrixWorld pour que les transforms soient à jour
+                    mesh.updateMatrixWorld(true);
+                    this.colliderMeshes.push(mesh);
+                }
+                totalMeshes += zone.colliderMeshes.length;
             }
         }
 
-        console.log(`Octree reconstruit depuis ${count} zone(s) visible(s).`);
+        console.log(`Colliders BVH mis à jour : ${totalMeshes} mesh(es) actifs.`);
     }
 
     // =====================================================
-    // DEBUT
+    // DEBUG
     // =====================================================
 
-    getStatus(){
+    getStatus() {
         const status = [];
         for (const [name, zone] of this.zones) {
             status.push({
                 name,
-                loaded:  zone.isLoaded,
+                loaded: zone.isLoaded,
                 loading: zone.isLoading,
                 visible: zone.isVisible,
+                colliders: zone.colliderMeshes?.length ?? 0,
                 current: zone === this.currentZone,
             });
         }
