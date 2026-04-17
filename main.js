@@ -3,7 +3,7 @@ import {PointerLockControls} from 'three/addons/controls/PointerLockControls.js'
 import {DRACOLoader} from "three/examples/jsm/loaders/DRACOLoader";
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
-import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast, MeshBVH } from 'three-mesh-bvh';
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import Benchmark from './Benchmarks.js';
 import jsonParser from "./jsonLoader/jsonParser";
 import {Zone} from './mapManager/Zone.js'
@@ -212,7 +212,7 @@ window.addEventListener('resize', () => {
 
 // ================= PHYSIQUE BVH =================
 
-function debugColliderMeshes(show) {
+function debugColliderMeshes() {
 
     colliderMeshes.forEach(mesh => {
         // On crée un clone visuel en fil de fer pour ne pas casser le matériau original
