@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 export class Zone {
 
     /**
@@ -18,7 +16,8 @@ export class Zone {
     }
 
     /**
-     * Charge le modèle en arrière-plan sans l'afficher
+     * Charge le modèle en arrière-plan sans l'afficher.
+     * Calcule le BVH sur chaque géométrie pour les collisions.
      * @param loader GLTFLoader
      * @returns {Promise<void>}
      */
@@ -33,6 +32,7 @@ export class Zone {
 
             // Préparation des meshs invisibles pour le moment
             this.content.visible = false; // Meshs invisibles
+            this.colliderMeshes = [];
 
             // Propriétés des meshs
             this.content.traverse(child => {
@@ -43,13 +43,18 @@ export class Zone {
                     if (child.material.map) {
                         child.material.map.anisotropy = 16;
                     }
+
+                    // Calcul du BVH en arrière-plan après le chargement.
+                    child.geometry.computeBoundsTree();
+                    child.updateMatrixWorld(true);
+                    this.colliderMeshes.push(child);
                 }
             });
 
             this.isLoaded = true; // Chargé
             this.isLoading = false; // Plus en chargement
+            console.log(`Zone "${this.name}" chargée — ${this.colliderMeshes.length} colliders BVH.`);
 
-            console.log(`Zone ${this.name} chargée en arrière-plan.`)
         } catch (e) {
             this.isLoading = false; // Plus en chargement
             console.error(`Erreur de chargement de la zone ${this.name} :`, e);
@@ -82,16 +87,19 @@ export class Zone {
     }
 
     /**
-     * Retire le contenu de la scène et libère la mémoire GPU.
+     * Retire le contenu de la scène et libère la mémoire GPU + BVH.
      * @param scene THREE.Scene
      */
     unload(scene) {
         if (!this.isLoaded) return; // La zone n'est pas chargée
         this.hide(scene); // Retrait du modèle de la scène
 
-        // Libération mémoire GPU
         this.content.traverse(child => {
             if (child.isMesh) {
+                // Libération de la mémoire BVH
+                if (child.geometry.boundsTree) {
+                    child.geometry.disposeBoundsTree();
+                }
                 child.geometry.dispose();
                 if (Array.isArray(child.material)) {
                     child.material.forEach(material => {
@@ -106,6 +114,7 @@ export class Zone {
         this.content = null; // Modèle plus chargé
         this.isLoaded = false; // Zone non chargée
         this.isLoading = false; // Zone non en chargement
+        this.colliderMeshes = [];
 
         console.log(`Zone "${this.name}" déchargée de la mémoire`);
     }
@@ -134,6 +143,4 @@ export class Zone {
     isPointInside(point) {
         return this.triggerBox.containsPoint(point);
     }
-
-
 }

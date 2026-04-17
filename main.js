@@ -3,21 +3,25 @@ import {PointerLockControls} from 'three/addons/controls/PointerLockControls.js'
 import {DRACOLoader} from "three/examples/jsm/loaders/DRACOLoader";
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
-import {Octree} from 'three/examples/jsm/math/Octree.js';
-import {Capsule} from 'three/examples/jsm/math/Capsule.js';
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import Benchmark from './Benchmarks.js';
 import jsonParser from "./jsonLoader/jsonParser";
 import {Zone} from './mapManager/Zone.js'
 import {ZoneManager} from './mapManager/ZoneManager'
+
+// Monkey-patch Three.js
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 // ================= CONFIG =================
 const CONFIG = {
     startZone: 'floor2',
     spawnPoint: new THREE.Vector3(85, 13, -3.1),
     // spawnPoint: new THREE.Vector3(0, 11, 0),
-    playerRadius: 0.2,
-    playerHeight: 1.0,
-    moveSpeed: 5,
+    playerRadius: 0.3,
+    playerHeight: 1.3,
+    moveSpeed: 6,
     gravity: 30,
     debugCapsule: false,
 };
@@ -74,7 +78,7 @@ document.body.appendChild(loadingScreen);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a2e);
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 10000);
 const renderer = new THREE.WebGLRenderer({antialias: true});
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
@@ -95,16 +99,17 @@ new Benchmark(renderer, scene, camera);
 
 // ================= PHYSIQUE =================
 const clock = new THREE.Clock();
-const worldOctree = new Octree();
 
-const playerCapsule = new Capsule(
-    CONFIG.spawnPoint.clone(),
-    CONFIG.spawnPoint.clone().add(new THREE.Vector3(0, CONFIG.playerHeight, 0)),
-    CONFIG.playerRadius
-);
-const playerVelocity = new THREE.Vector3();
+// La capsule est représentée par sa position (centre bas) + rayon + hauteur.
+const playerPos    = CONFIG.spawnPoint.clone();  // position du bas de la capsule
+const playerVelocity  = new THREE.Vector3();
 const playerDirection = new THREE.Vector3();
 let playerOnFloor = false;
+
+const _capsuleBottom = new THREE.Vector3();
+const _capsuleTop    = new THREE.Vector3();
+const _normal        = new THREE.Vector3();
+const _matrix        = new THREE.Matrix4();
 
 // Debug capsule
 const debugMat = new THREE.MeshBasicMaterial({color: 0xff0000, wireframe: true});
@@ -141,8 +146,11 @@ const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dLoader);
 
 // ================= ZONE MANAGER =================
+// On passe colliderMeshes au ZoneManager
+// Il y ajoute/retire les meshes de collision selon les zones visibles
+const colliderMeshes = [];
 
-const zoneManager = new ZoneManager({scene, loader: gltfLoader, worldOctree});
+const zoneManager = new ZoneManager({scene, loader: gltfLoader, colliderMeshes});
 ZONES.forEach(zone => zoneManager.registerZone(zone));
 ZONES.forEach(zone => {
     const helper = new THREE.Box3Helper(zone.triggerBox, 0xffff00);
@@ -185,6 +193,12 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         zoneManager.getStatus(); // Affiche le tableau des zones dans la console
     }
+    document.addEventListener('keydown', e => {
+        if (e.code === 'F3') { // Appuie sur F3 pour voir les collisions
+            e.preventDefault();
+            debugColliderMeshes();
+        }
+    });
 });
 
 // ================= RESIZE =================
@@ -196,21 +210,139 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ================= PHYSIQUE =================
+// ================= PHYSIQUE BVH =================
+
+function debugColliderMeshes() {
+
+    colliderMeshes.forEach(mesh => {
+        // On crée un clone visuel en fil de fer pour ne pas casser le matériau original
+        const wireframeGeom = new THREE.WireframeGeometry(mesh.geometry);
+        const wireframe = new THREE.LineSegments(wireframeGeom);
+
+        // On applique la même position/rotation que le mesh original
+        wireframe.matrixAutoUpdate = false;
+        wireframe.matrix.copy(mesh.matrixWorld);
+
+        // Couleur rouge pour les collisions
+        wireframe.material.color.set(0xff0000);
+        wireframe.material.opacity = 0.5;
+        wireframe.material.transparent = true;
+
+        scene.add(wireframe);
+    });
+}
+
+/**
+ * Résolution des collisions capsule/monde via BVH.
+ * Teste chaque mesh de collision actif dans colliderMeshes.
+ * Pousse le joueur hors des surfaces de manière itérative.
+ */
 function playerCollisions() {
-    const result = worldOctree.capsuleIntersect(playerCapsule);
     playerOnFloor = false;
 
-    if (result) {
-        playerOnFloor = result.normal.y > 0.1;
+    const EPS = 0.002;          // seuil anti micro-collisions
+    const MAX_PUSH = 3;         // limite de corrections par mesh
+    let pushCount = 0;
 
-        if (result.depth > 0.01) {
-            playerCapsule.translate(result.normal.multiplyScalar(result.depth));
-        }
+    _capsuleBottom.copy(playerPos);
+    _capsuleBottom.y = playerPos.y + CONFIG.playerRadius;
 
-        if (playerOnFloor && playerVelocity.y < 0) {
-            playerVelocity.y = 0;
-        }
+    _capsuleTop.copy(playerPos);
+    _capsuleTop.y = playerPos.y + CONFIG.playerHeight - CONFIG.playerRadius;
+
+    for (const mesh of colliderMeshes) {
+        if (!mesh.geometry.boundsTree) continue;
+
+        pushCount = 0;
+
+        const invMat = _matrix.copy(mesh.matrixWorld).invert();
+
+        const localBottom = _capsuleBottom.clone().applyMatrix4(invMat);
+        const localTop = _capsuleTop.clone().applyMatrix4(invMat);
+
+        const scale = mesh.matrixWorld.getMaxScaleOnAxis();
+        const localR = CONFIG.playerRadius / scale;
+
+        mesh.geometry.boundsTree.shapecast({
+            intersectsBounds: box => {
+                const capsuleBox = new THREE.Box3();
+
+                capsuleBox.min.set(
+                    Math.min(localBottom.x, localTop.x) - localR,
+                    Math.min(localBottom.y, localTop.y) - localR,
+                    Math.min(localBottom.z, localTop.z) - localR
+                );
+
+                capsuleBox.max.set(
+                    Math.max(localBottom.x, localTop.x) + localR,
+                    Math.max(localBottom.y, localTop.y) + localR,
+                    Math.max(localBottom.z, localTop.z) + localR
+                );
+
+                return capsuleBox.intersectsBox(box);
+            },
+
+            intersectsTriangle: tri => {
+
+                if (pushCount >= MAX_PUSH) return false;
+
+                const capsuleSeg = new THREE.Line3(localBottom, localTop);
+
+                const closestPointOnTriangle = new THREE.Vector3();
+                const closestPointOnSegment  = new THREE.Vector3();
+
+                tri.closestPointToSegment(
+                    capsuleSeg,
+                    closestPointOnTriangle,
+                    closestPointOnSegment
+                );
+
+                const distance = closestPointOnSegment.distanceTo(closestPointOnTriangle);
+
+                // seuil anti jitter
+                if (distance >= localR - EPS) return false;
+
+                const depth = localR - distance;
+
+                _normal.subVectors(closestPointOnSegment, closestPointOnTriangle);
+
+                if (_normal.lengthSq() === 0) return false;
+
+                _normal.normalize();
+
+                const worldNormal = _normal.clone().transformDirection(mesh.matrixWorld);
+
+                // --- SOL ---
+                if (worldNormal.y > 0.5) {
+                    playerOnFloor = true;
+
+                    // empêche rebond vertical
+                    if (playerVelocity.y < 0) playerVelocity.y = 0;
+
+                    // colle légèrement au sol (empêche les micro-sauts)
+                    playerPos.y -= EPS;
+                }
+
+                // --- PLAFOND ---
+                else if (worldNormal.y < -0.5) {
+                    if (playerVelocity.y > 0) playerVelocity.y = 0;
+                }
+
+                // --- MUR / ESCALIER ---
+                else {
+                    // glissement
+                    playerVelocity.projectOnPlane(worldNormal);
+                }
+
+                // correction position avec clamp
+                const push = Math.min(depth * scale, 0.05);
+                playerPos.addScaledVector(worldNormal, push);
+
+                pushCount++;
+
+                return false;
+            }
+        });
     }
 }
 
@@ -243,23 +375,30 @@ function animate() {
         if (keyMap['KeyS'] || keyMap['ArrowDown']) playerVelocity.add(getForwardVector().multiplyScalar(-speed));
         if (keyMap['KeyA'] || keyMap['ArrowLeft']) playerVelocity.add(getSideVector().multiplyScalar(-speed));
         if (keyMap['KeyD'] || keyMap['ArrowRight']) playerVelocity.add(getSideVector().multiplyScalar(speed));
-        if (keyMap['KeyP']) console.log(camera.position);
 
         if (!playerOnFloor) {
             playerVelocity.y -= CONFIG.gravity * deltaTime;
+        } else {
+            playerVelocity.y = Math.max(0, playerVelocity.y);
         }
-
-        playerCapsule.translate(playerVelocity.clone().multiplyScalar(deltaTime));
+        playerPos.add(playerVelocity.clone().multiplyScalar(deltaTime));
         playerCollisions();
 
-        camera.position.copy(playerCapsule.end);
+        // Placement de la caméra
+        camera.position.set(
+            playerPos.x,
+            playerPos.y + CONFIG.playerHeight,
+            playerPos.z
+        );
 
         // ZoneManager : détection de transition à chaque frame
         zoneManager.update(camera.position);
 
         if (CONFIG.debugCapsule) {
-            capsuleHelper.position.copy(
-                playerCapsule.start.clone().lerp(playerCapsule.end, 0.5)
+            capsuleHelper.position.set(
+                playerPos.x,
+                playerPos.y + CONFIG.playerHeight / 2,
+                playerPos.z
             );
         }
     }
@@ -276,4 +415,3 @@ function animate() {
 }
 
 renderer.setAnimationLoop(animate);
-
