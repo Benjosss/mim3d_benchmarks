@@ -166,9 +166,8 @@ setTimeout(() => loadingScreen.remove(), 500);
 const t1 = performance.now();
 const res_load = `⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)} secondes.`
 console.log(`⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)} secondes.`);
-const statsHTML = document.getElementById('stats');
+const statsHTML = document.getElementById('stats_time');
 statsHTML.textContent = res_load;
-
 
 // ================= INPUT (AZERTY) =================
 const keyMap = {};
@@ -272,6 +271,7 @@ function animate() {
     }
 
     stats.update();
+    document.getElementById('stats_nb_zones').textContent = "Nombres de zones chargées : " + zoneManager.managedZones.size.toString();
     renderer.render(scene, camera);
 }
 
