@@ -77,6 +77,29 @@ document.body.appendChild(loadingScreen);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a2e);
 
+let skyArray = [];
+let texture_ft = new THREE.TextureLoader().load('models/skybox/miramar_ft.jpg');
+let texture_bk = new THREE.TextureLoader().load('models/skybox/miramar_bk.jpg');
+let texture_up = new THREE.TextureLoader().load('models/skybox/miramar_up.jpg');
+let texture_dn = new THREE.TextureLoader().load('models/skybox/miramar_dn.jpg');
+let texture_rt = new THREE.TextureLoader().load('models/skybox/miramar_rt.jpg');
+let texture_lf = new THREE.TextureLoader().load('models/skybox/miramar_lf.jpg');
+
+skyArray.push(new THREE.MeshBasicMaterial({map: texture_ft}));
+skyArray.push(new THREE.MeshBasicMaterial({map: texture_bk}));
+skyArray.push(new THREE.MeshBasicMaterial({map: texture_up}));
+skyArray.push(new THREE.MeshBasicMaterial({map: texture_dn}));
+skyArray.push(new THREE.MeshBasicMaterial({map: texture_rt}));
+skyArray.push(new THREE.MeshBasicMaterial({map: texture_lf}));
+
+for(let i=0; i<6; i++) {
+    skyArray[i].side = THREE.BackSide;
+}
+
+let skyboxGeo = new THREE.BoxGeometry(10000, 10000, 10000);
+let skybox = new THREE.Mesh(skyboxGeo, skyArray);
+scene.add(skybox);
+
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
 scene.add(camera);
 
