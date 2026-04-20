@@ -412,6 +412,7 @@ function animate() {
 
     stats.update();
     document.getElementById('stats_nb_zones').textContent = "Nombres de zones chargées : " + zoneManager.managedZones.size.toString();
+    document.getElementById('current_zone').textContent = "Zone actuelle : " + zoneManager.currentZone?.name ?? 'aucune';
     renderer.render(scene, camera);
 }
 

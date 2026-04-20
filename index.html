@@ -30,6 +30,25 @@
             top: 0;
             right: 0;
             padding: 10px;
+            border-radius: 0 0 0 15px;
+        }
+
+        #infosPanel {
+            position: absolute;
+            display: flex;
+            left: 50%;
+            transform: translateX(-50%);
+            top: 0;
+            width: 30%;
+            background-color: rgba(255, 255, 255, 0.5);
+            padding: 10px;
+            justify-content: center;
+            align-items: center;
+            border-radius: 0 0 15px 15px;
+        }
+
+        #current_zone {
+            margin: 0;
         }
     </style>
 </head>
@@ -43,6 +62,9 @@
 </div>
 <div id="menuPanel">
     <button id="startButton">Cliquez pour entrer</button>
+</div>
+<div id="infosPanel">
+    <p id="current_zone"></p>
 </div>
 <script type="module" src="/main.js"></script>
 </body>
