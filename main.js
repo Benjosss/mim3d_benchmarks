@@ -18,7 +18,6 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 const CONFIG = {
     startZone: 'floor2',
     spawnPoint: new THREE.Vector3(85, 13, -3.1),
-    // spawnPoint: new THREE.Vector3(0, 11, 0),
     playerRadius: 0.3,
     playerHeight: 1.3,
     moveSpeed: 6,
