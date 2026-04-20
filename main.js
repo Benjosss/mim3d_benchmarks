@@ -30,7 +30,6 @@ const CONFIG = {
 let ZONES = [];
 
 const parser = new jsonParser("data/data.json");
-
 const jsonData = await parser.fetchJSONData();
 
 if (!jsonData) {
@@ -78,8 +77,9 @@ document.body.appendChild(loadingScreen);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a2e);
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 10000);
-camera.position.set(...CONFIG.spawnPoint);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+scene.add(camera);
+
 const renderer = new THREE.WebGLRenderer({antialias: true});
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
@@ -146,6 +146,55 @@ dLoader.setDecoderConfig({type: "js"});
 const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dLoader);
 
+// ================= CHARGEMENT DU PERSONNAGE =================
+const player = new THREE.Group();
+scene.add(player);
+
+let characterModel = null;
+let mixer = null;
+
+// Noms de nodes à masquer en vue FPS
+const FPS_HIDDEN_PARTS = ['head', 'hair', 'eyes', 'internal', 'internal2'];
+
+gltfLoader.load('models/players/woman_anim.glb', (gltf) => {
+    characterModel = gltf.scene;
+    characterModel.scale.set(0.8, 0.8, 0.8);
+    characterModel.position.y = 0;
+    characterModel.rotation.y = Math.PI; // Rotation de 180 deg
+
+    characterModel.traverse(node => {
+        if (node.isMesh) {
+            node.castShadow    = true;
+            node.receiveShadow = true;
+            const nameLower = node.name.toLowerCase();
+            node.visible = !FPS_HIDDEN_PARTS.some(part => nameLower.includes(part));
+        }
+    });
+
+    const skeleton = new THREE.SkeletonHelper(characterModel);
+    skeleton.visible = true;
+    scene.add(skeleton);
+
+    mixer = new THREE.AnimationMixer(characterModel);
+
+    const animations = gltf.animations;
+    const clip = animations[0];
+
+    // Supprime les déplacement du modèle (root motion)
+    clip.tracks = clip.tracks.filter(track => {
+        return !(track.name.includes('position') &&
+            (track.name.includes('Hips') || track.name.includes('hips')));
+    });
+
+    const walkAction = mixer.clipAction(clip);
+    walkAction.play();
+    walkAction.paused = true;
+    characterModel.userData.walkAction = walkAction;
+
+    player.add(characterModel);
+
+}, undefined, (error) => console.error("Erreur chargement personnage :", error));
+
 // ================= ZONE MANAGER =================
 // On passe colliderMeshes au ZoneManager
 // Il y ajoute/retire les meshes de collision selon les zones visibles
@@ -194,12 +243,10 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         zoneManager.getStatus(); // Affiche le tableau des zones dans la console
     }
-    document.addEventListener('keydown', e => {
-        if (e.code === 'F3') { // Appuie sur F3 pour voir les collisions
-            e.preventDefault();
-            debugColliderMeshes();
-        }
-    });
+    if (e.code === 'F3') {
+        e.preventDefault();
+        debugColliderMeshes();
+    }
 });
 
 // ================= RESIZE =================
@@ -366,31 +413,58 @@ function getSideVector() {
 function animate() {
     const deltaTime = Math.min(0.05, clock.getDelta());
 
+    // Mise à jour du mixer
+    if (mixer) mixer.update(deltaTime);
+
     if (controls.isLocked) {
         const speed = CONFIG.moveSpeed;
         const yVel = playerVelocity.y;
         playerVelocity.set(0, yVel, 0);
 
-        // Contrôles AZERTY
-        if (keyMap['KeyW'] || keyMap['ArrowUp']) playerVelocity.add(getForwardVector().multiplyScalar(speed));
-        if (keyMap['KeyS'] || keyMap['ArrowDown']) playerVelocity.add(getForwardVector().multiplyScalar(-speed));
-        if (keyMap['KeyA'] || keyMap['ArrowLeft']) playerVelocity.add(getSideVector().multiplyScalar(-speed));
+        const isMoving =
+            keyMap['KeyW'] || keyMap['ArrowUp']   ||
+            keyMap['KeyS'] || keyMap['ArrowDown']  ||
+            keyMap['KeyA'] || keyMap['ArrowLeft']  ||
+            keyMap['KeyD'] || keyMap['ArrowRight'];
+
+        if (keyMap['KeyW'] || keyMap['ArrowUp'])    playerVelocity.add(getForwardVector().multiplyScalar(speed));
+        if (keyMap['KeyS'] || keyMap['ArrowDown'])  playerVelocity.add(getForwardVector().multiplyScalar(-speed));
+        if (keyMap['KeyA'] || keyMap['ArrowLeft'])  playerVelocity.add(getSideVector().multiplyScalar(-speed));
         if (keyMap['KeyD'] || keyMap['ArrowRight']) playerVelocity.add(getSideVector().multiplyScalar(speed));
+
+        if (characterModel?.userData.walkAction) {
+            characterModel.userData.walkAction.paused = !isMoving;
+        }
 
         if (!playerOnFloor) {
             playerVelocity.y -= CONFIG.gravity * deltaTime;
         } else {
             playerVelocity.y = Math.max(0, playerVelocity.y);
         }
+
         playerPos.add(playerVelocity.clone().multiplyScalar(deltaTime));
         playerCollisions();
 
-        // Placement de la caméra
+        // Limite le regard vertical
+        const euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+        euler.x = Math.max(-0.9, Math.min(Math.PI / 2, euler.x));
+        camera.quaternion.setFromEuler(euler);
+
+        // Caméra FPS
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
         camera.position.set(
-            playerPos.x,
+            playerPos.x + forward.x * 0.12, // 0.12 pour être juste devant les yeux
             playerPos.y + CONFIG.playerHeight,
-            playerPos.z
+            playerPos.z + forward.z * 0.12 // 0.12 pour être juste devant les yeux
         );
+
+        // Modèle visible
+        player.position.copy(playerPos);
+        if (characterModel) {
+            const yaw = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ').y;
+            characterModel.rotation.y = yaw + Math.PI;
+        }
 
         // ZoneManager : détection de transition à chaque frame
         zoneManager.update(camera.position);
