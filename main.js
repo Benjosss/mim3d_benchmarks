@@ -3,7 +3,7 @@ import {PointerLockControls} from 'three/addons/controls/PointerLockControls.js'
 import {DRACOLoader} from "three/examples/jsm/loaders/DRACOLoader";
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
-import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+import {computeBoundsTree, disposeBoundsTree, acceleratedRaycast} from 'three-mesh-bvh';
 import Benchmark from './Benchmarks.js';
 import jsonParser from "./jsonLoader/jsonParser";
 import {Zone} from './mapManager/Zone.js'
@@ -18,7 +18,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 const CONFIG = {
     startZone: 'floor2',
     spawnPoint: new THREE.Vector3(85, 13, -3.1),
-    playerRadius: 0.3,
+    playerRadius: 0.4,
     playerHeight: 1.3,
     moveSpeed: 6,
     gravity: 30,
@@ -91,7 +91,7 @@ skyArray.push(new THREE.MeshBasicMaterial({map: texture_dn}));
 skyArray.push(new THREE.MeshBasicMaterial({map: texture_rt}));
 skyArray.push(new THREE.MeshBasicMaterial({map: texture_lf}));
 
-for(let i=0; i<6; i++) {
+for (let i = 0; i < 6; i++) {
     skyArray[i].side = THREE.BackSide;
 }
 
@@ -124,15 +124,15 @@ new Benchmark(renderer, scene, camera);
 const clock = new THREE.Clock();
 
 // La capsule est représentée par sa position (centre bas) + rayon + hauteur.
-const playerPos    = CONFIG.spawnPoint.clone();  // position du bas de la capsule
-const playerVelocity  = new THREE.Vector3();
+const playerPos = CONFIG.spawnPoint.clone();  // position du bas de la capsule
+const playerVelocity = new THREE.Vector3();
 const playerDirection = new THREE.Vector3();
 let playerOnFloor = false;
 
 const _capsuleBottom = new THREE.Vector3();
-const _capsuleTop    = new THREE.Vector3();
-const _normal        = new THREE.Vector3();
-const _matrix        = new THREE.Matrix4();
+const _capsuleTop = new THREE.Vector3();
+const _normal = new THREE.Vector3();
+const _matrix = new THREE.Matrix4();
 
 // Debug capsule
 const debugMat = new THREE.MeshBasicMaterial({color: 0xff0000, wireframe: true});
@@ -186,7 +186,7 @@ gltfLoader.load('models/players/woman_anim.glb', (gltf) => {
 
     characterModel.traverse(node => {
         if (node.isMesh) {
-            node.castShadow    = true;
+            node.castShadow = true;
             node.receiveShadow = true;
             const nameLower = node.name.toLowerCase();
             node.visible = !FPS_HIDDEN_PARTS.some(part => nameLower.includes(part));
@@ -355,7 +355,7 @@ function playerCollisions() {
                 const capsuleSeg = new THREE.Line3(localBottom, localTop);
 
                 const closestPointOnTriangle = new THREE.Vector3();
-                const closestPointOnSegment  = new THREE.Vector3();
+                const closestPointOnSegment = new THREE.Vector3();
 
                 tri.closestPointToSegment(
                     capsuleSeg,
@@ -397,11 +397,14 @@ function playerCollisions() {
                 // --- MUR / ESCALIER ---
                 else {
                     // glissement
-                    playerVelocity.projectOnPlane(worldNormal);
+                    const dot = playerVelocity.dot(worldNormal);
+                    if (dot < 0) {
+                        playerVelocity.addScaledVector(worldNormal, -dot);
+                    }
                 }
 
                 // correction position avec clamp
-                const push = Math.min(depth * scale, 0.05);
+                const push = depth * scale + 0.003;
                 playerPos.addScaledVector(worldNormal, push);
 
                 pushCount++;
@@ -440,14 +443,14 @@ function animate() {
         playerVelocity.set(0, yVel, 0);
 
         const isMoving =
-            keyMap['KeyW'] || keyMap['ArrowUp']   ||
-            keyMap['KeyS'] || keyMap['ArrowDown']  ||
-            keyMap['KeyA'] || keyMap['ArrowLeft']  ||
+            keyMap['KeyW'] || keyMap['ArrowUp'] ||
+            keyMap['KeyS'] || keyMap['ArrowDown'] ||
+            keyMap['KeyA'] || keyMap['ArrowLeft'] ||
             keyMap['KeyD'] || keyMap['ArrowRight'];
 
-        if (keyMap['KeyW'] || keyMap['ArrowUp'])    playerVelocity.add(getForwardVector().multiplyScalar(speed));
-        if (keyMap['KeyS'] || keyMap['ArrowDown'])  playerVelocity.add(getForwardVector().multiplyScalar(-speed));
-        if (keyMap['KeyA'] || keyMap['ArrowLeft'])  playerVelocity.add(getSideVector().multiplyScalar(-speed));
+        if (keyMap['KeyW'] || keyMap['ArrowUp']) playerVelocity.add(getForwardVector().multiplyScalar(speed));
+        if (keyMap['KeyS'] || keyMap['ArrowDown']) playerVelocity.add(getForwardVector().multiplyScalar(-speed));
+        if (keyMap['KeyA'] || keyMap['ArrowLeft']) playerVelocity.add(getSideVector().multiplyScalar(-speed));
         if (keyMap['KeyD'] || keyMap['ArrowRight']) playerVelocity.add(getSideVector().multiplyScalar(speed));
 
         if (characterModel?.userData.walkAction) {
@@ -460,8 +463,24 @@ function animate() {
             playerVelocity.y = Math.max(0, playerVelocity.y);
         }
 
-        playerPos.add(playerVelocity.clone().multiplyScalar(deltaTime));
-        playerCollisions();
+        const steps = 8;
+        const subDelta = deltaTime / steps;
+
+        for (let i = 0; i < steps; i++) {
+
+            // appliquer gravité
+            if (!playerOnFloor) {
+                playerVelocity.y -= CONFIG.gravity * subDelta;
+            }
+
+            // déplacement
+            const deltaMove = playerVelocity.clone().multiplyScalar(subDelta);
+            playerPos.add(deltaMove);
+
+            // collisions
+            playerCollisions();
+
+        }
 
         // Limite le regard vertical
         const euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
