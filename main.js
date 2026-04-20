@@ -194,10 +194,6 @@ gltfLoader.load('models/players/woman_anim.glb', (gltf) => {
         }
     });
 
-    const skeleton = new THREE.SkeletonHelper(characterModel);
-    skeleton.visible = true;
-    scene.add(skeleton);
-
     mixer = new THREE.AnimationMixer(characterModel);
 
     const animations = gltf.animations;
