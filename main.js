@@ -100,6 +100,7 @@ let skybox = new THREE.Mesh(skyboxGeo, skyArray);
 scene.add(skybox);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+camera.position.set(...CONFIG.spawnPoint);
 scene.add(camera);
 
 const renderer = new THREE.WebGLRenderer({antialias: true});
