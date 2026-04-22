@@ -1,42 +1,62 @@
 [
   {
     "name": "floor-1",
-    "path": "models/-1_floor_jpeg_draco.glb",
+    "path": "models/-1_floor_aisle_b_sized.glb",
     "type": "floor",
     "adjacentZoneNames": ["floor0"],
     "triggerBox": {
-      "max": [89, 0, -1.432],
-      "min": [71.353, -7, -75.368]
+      "min": [56.320, -0.200, -69.797],
+      "max": [87.549, 4.006, -9.059]
     }
   },
   {
     "name": "floor0",
-    "path": "models/0_floor_aisle_b_jpeg_draco.glb",
+    "path": "models/0_floor_aisle_b_sized.glb",
     "type": "floor",
-    "adjacentZoneNames": ["stairscase2", "floor1", "floor-1"],
+    "adjacentZoneNames": ["stairscase2", "floor1", "floor-1", "floor0ground"],
     "triggerBox": {
-      "max": [89, 7, -1.432],
-      "min": [71.353, 0, -75.368]
+      "min": [70.925, 2.651, -75.214],
+      "max": [89.943, 7.642, -0.082]
+    }
+  },
+  {
+    "name": "floor0ground",
+    "path": "models/0_floor_aisle_b_ground_sized.glb",
+    "type": "floor",
+    "adjacentZoneNames": ["stairscase2", "floor1", "floor-1", "floor0"],
+    "triggerBox": {
+      "min": [0,0,0],
+      "max": [0,0,0]
     }
   },
   {
     "name": "floor1",
-    "path": "models/1_floor_aisle_b_jpeg_draco.glb",
+    "path": "models/1_floor_aisle_b_sized.glb",
     "type": "floor",
-    "adjacentZoneNames": ["stairscase1", "floor2", "floor0", "stairscase2"],
+    "adjacentZoneNames": ["stairscase1", "floor2", "floor0", "floor0ground", "stairscase2"],
     "triggerBox": {
-      "max": [89, 11, -1.432],
-      "min": [71.353, 7, -75.368]
+      "min": [71.049, 6.443, -75.211],
+      "max": [89.923, 11, -0.106]
     }
   },
   {
     "name": "floor2",
-    "path": "models/2_floor_aisle_b_jpeg_draco.glb",
+    "path": "models/2_floor_aisle_b_sized.glb",
     "type": "floor",
-    "adjacentZoneNames": ["stairscase1", "floor1"],
+    "adjacentZoneNames": ["stairscase1", "floor1", "floor3"],
     "triggerBox": {
-      "max": [89, 19.111, -1.432],
-      "min": [71.353, 11.451, -75.368]
+      "min": [70.950, 11.075, -75.211],
+      "max": [89.923, 14.553, -0.105]
+    }
+  },
+  {
+    "name": "floor3",
+    "path": "models/3_floor_aisle_b_sized.glb",
+    "type": "floor",
+    "adjacentZoneNames": ["floor2"],
+    "triggerBox": {
+      "min": [71.019, 14.530, -75.211],
+      "max": [89.925, 18.038, -0.105]
     }
   },
   {
@@ -53,7 +73,7 @@
     "name": "stairscase2",
     "path": "models/staircase2_jpeg_draco.glb",
     "type": "floor",
-    "adjacentZoneNames": ["floor1", "floor0", "stairscase1"],
+    "adjacentZoneNames": ["floor1", "floor0", "floor0ground", "stairscase1"],
     "triggerBox": {
       "min": [76, 5, -28],
       "max": [78, 9, -21]
