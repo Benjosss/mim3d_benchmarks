@@ -299,13 +299,16 @@ export class ZoneManager {
     getStatus() {
         const status = [];
         for (const [name, zone] of this.zones) {
+            const isCurrent = zone === this.currentZone;
+
             status.push({
                 name,
-                loaded: zone.isLoaded,
-                loading: zone.isLoading,
-                visible: zone.isVisible,
+                // Utilisation d'emojis pour simuler la couleur
+                loaded: zone.isLoaded ? "✅" : "❌",
+                loading: zone.isLoading ? "⏳" : "⚪",
+                visible: zone.isVisible ? "👁️" : "🌑",
                 colliders: zone.colliderMeshes?.length ?? 0,
-                current: zone === this.currentZone,
+                current: isCurrent ? "⭐" : "❌",
             });
         }
         console.table(status);
