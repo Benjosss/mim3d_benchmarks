@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zone Adjacency Matrix</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --border: #1e1e2e;
+            --text: #e2e2f0;
+            --text-muted: #5a5a7a;
+            --green: #00ff9d;
+            --green-dim: #00ff9d22;
+            --red: #ff3366;
+            --red-dim: #ff336622;
+            --yellow: #ffcc00;
+            --accent: #4466ff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Space Mono', monospace;
+            min-height: 100vh;
+            padding: 40px 24px;
+        }
+
+        /* Grain overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.5;
+        }
+
+        header {
+            max-width: 1200px;
+            margin: 0 auto 48px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+
+        .title-block h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: clamp(1.8rem, 4vw, 3rem);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1;
+            color: var(--text);
+        }
+
+        .title-block h1 span {
+            color: var(--accent);
+        }
+
+        .title-block p {
+            margin-top: 8px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        .legend-dot.ok    { background: var(--green); }
+        .legend-dot.error { background: var(--red); }
+        .legend-dot.none  { background: var(--border); }
+        .legend-dot.self  { background: var(--surface); border: 1px solid var(--border); }
+
+        /* Stats bar */
+        .stats {
+            max-width: 1200px;
+            margin: 0 auto 32px;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 20px;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .stat-card .value {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .stat-card .label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 4px;
+        }
+
+        .stat-card.ok    .value { color: var(--green); }
+        .stat-card.error .value { color: var(--red); }
+        .stat-card.info  .value { color: var(--accent); }
+        .stat-card.warn  .value { color: var(--yellow); }
+
+        /* Table wrapper */
+        .table-wrapper {
+            max-width: 1200px;
+            margin: 0 auto;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface);
+        }
+
+        table {
+            border-collapse: collapse;
+            width: max-content;
+            min-width: 100%;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0;
+        }
+
+        /* Corner cell */
+        .corner {
+            background: var(--bg);
+            padding: 12px 16px;
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            white-space: nowrap;
+            vertical-align: bottom;
+        }
+
+        /* Column headers */
+        .col-header {
+            background: var(--bg);
+            padding: 8px 4px;
+            text-align: center;
+            min-width: 48px;
+            width: 48px;
+        }
+
+        .col-header-inner {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            font-size: 0.65rem;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            padding: 8px 0;
+            white-space: nowrap;
+            transition: color 0.15s;
+        }
+
+        /* Row headers */
+        .row-header {
+            background: var(--bg);
+            padding: 6px 16px 6px 12px;
+            font-size: 0.65rem;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            white-space: nowrap;
+            text-align: right;
+            transition: color 0.15s;
+        }
+
+        /* Cells */
+        .cell {
+            width: 48px;
+            height: 40px;
+            text-align: center;
+            vertical-align: middle;
+            cursor: default;
+            position: relative;
+            transition: filter 0.15s;
+        }
+
+        .cell-inner {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            transition: background 0.15s;
+        }
+
+        /* Self */
+        .cell.self .cell-inner {
+            background: var(--bg);
+            color: var(--text-muted);
+        }
+
+        /* Valid adjacency — both sides declare each other */
+        .cell.ok .cell-inner {
+            background: var(--green-dim);
+            color: var(--green);
+        }
+
+        /* Invalid — A declares B but B doesn't declare A */
+        .cell.error .cell-inner {
+            background: var(--red-dim);
+            color: var(--red);
+        }
+
+        /* No adjacency */
+        .cell.none .cell-inner {
+            background: transparent;
+            color: var(--border);
+        }
+
+        /* Hover highlight */
+        tr:hover .row-header,
+        tr:hover .cell:not(.self) .cell-inner { filter: brightness(1.3); }
+
+        table:has(.col-header:nth-child(n):hover) .col-header-inner { color: var(--text); }
+
+        /* Tooltip */
+        .cell[data-tip]:hover::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e1e2e;
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-size: 0.6rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            z-index: 100;
+            pointer-events: none;
+            letter-spacing: 0.04em;
+        }
+
+        /* Error list */
+        .error-section {
+            max-width: 1200px;
+            margin: 32px auto 0;
+        }
+
+        .error-section h2 {
+            font-family: 'Syne', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--red);
+            margin-bottom: 12px;
+        }
+
+        .error-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .error-item {
+            background: var(--red-dim);
+            border: 1px solid #ff336644;
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-size: 0.7rem;
+            color: var(--red);
+            letter-spacing: 0.04em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: fadeIn 0.3s ease both;
+        }
+
+        .error-item::before { content: '↯'; font-size: 1rem; }
+
+        .no-errors {
+            background: var(--green-dim);
+            border: 1px solid #00ff9d44;
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-size: 0.7rem;
+            color: var(--green);
+            letter-spacing: 0.04em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .no-errors::before { content: '✓'; font-size: 1rem; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Upload zone */
+        .upload-zone {
+            max-width: 1200px;
+            margin: 0 auto 40px;
+            border: 1px dashed var(--border);
+            border-radius: 10px;
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .upload-zone:hover { border-color: var(--accent); background: #4466ff0a; }
+
+        .upload-zone label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .upload-zone label span { color: var(--accent); }
+
+        #file-input { display: none; }
+
+        .file-name {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="title-block">
+        <h1>Zone <span>Adjacency</span> Matrix</h1>
+        <p>Validation de la cohérence des zones de navigation</p>
+    </div>
+    <div class="legend">
+        <div class="legend-item"><div class="legend-dot ok"></div> Adjacence valide (symétrique)</div>
+        <div class="legend-item"><div class="legend-dot error"></div> Erreur (non symétrique)</div>
+        <div class="legend-item"><div class="legend-dot none"></div> Pas d'adjacence</div>
+        <div class="legend-item"><div class="legend-dot self"></div> Même zone</div>
+    </div>
+</header>
+
+<div class="upload-zone" onclick="document.getElementById('file-input').click()">
+    <label>
+        <span>Charger un fichier JSON</span> — ou glisser-déposer ici
+    </label>
+    <span class="file-name" id="file-name-display">Attente du fichier data.json...</span>
+    <input type="file" id="file-input" accept=".json">
+</div>
+
+<div class="stats" id="stats"></div>
+<div class="table-wrapper"><table id="matrix-table"></table></div>
+<div class="error-section">
+    <h2>Erreurs détectées</h2>
+    <div class="error-list" id="error-list"></div>
+</div>
+
+<script>
+    // URL du fichier à charger par défaut au démarrage
+    const DEFAULT_DATA_PATH = 'data.json';
+
+    async function init() {
+        try {
+            const response = await fetch(DEFAULT_DATA_PATH);
+            if (!response.ok) throw new Error('Fichier non trouvé');
+            const data = await response.json();
+            document.getElementById('file-name-display').textContent = DEFAULT_DATA_PATH + " (chargé)";
+            buildMatrix(data);
+        } catch (err) {
+            console.warn("Le chargement automatique a échoué. Utilisez l'upload manuel ou un serveur local.");
+            document.getElementById('file-name-display').textContent = "Aucun fichier chargé automatiquement";
+        }
+    }
+
+    function buildMatrix(data) {
+        if (!Array.isArray(data)) return;
+
+        const zones = data.map(z => z.name);
+        const adjMap = {};
+        data.forEach(z => { adjMap[z.name] = new Set(z.adjacentZoneNames); });
+
+        const errors = [];
+        let validCount = 0, errorCount = 0, noneCount = 0;
+
+        const table = document.getElementById('matrix-table');
+        table.innerHTML = '';
+
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        const corner = document.createElement('th');
+        corner.className = 'corner';
+        corner.innerHTML = 'FROM&nbsp;↓&nbsp;&nbsp;TO&nbsp;→';
+        headerRow.appendChild(corner);
+
+        zones.forEach(col => {
+            const th = document.createElement('th');
+            th.className = 'col-header';
+            th.innerHTML = `<div class="col-header-inner">${col}</div>`;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        zones.forEach(row => {
+            const tr = document.createElement('tr');
+            const rowHeader = document.createElement('td');
+            rowHeader.className = 'row-header';
+            rowHeader.textContent = row;
+            tr.appendChild(rowHeader);
+
+            zones.forEach(col => {
+                const td = document.createElement('td');
+                td.className = 'cell';
+                const inner = document.createElement('div');
+                inner.className = 'cell-inner';
+
+                if (row === col) {
+                    td.classList.add('self');
+                    inner.textContent = '—';
+                    td.dataset.tip = row;
+                } else {
+                    const rowToCol = adjMap[row]?.has(col);
+                    const colToRow = adjMap[col]?.has(row);
+
+                    if (rowToCol && colToRow) {
+                        td.classList.add('ok');
+                        inner.textContent = '✓';
+                        td.dataset.tip = `${row} ↔ ${col}`;
+                        validCount++;
+                    } else if (rowToCol && !colToRow) {
+                        td.classList.add('error');
+                        inner.textContent = '↯';
+                        td.dataset.tip = `${row} → ${col} mais pas l'inverse`;
+                        errors.push(`"${row}" déclare "${col}" comme voisin, mais "${col}" ne déclare pas "${row}"`);
+                        errorCount++;
+                    } else if (!rowToCol && colToRow) {
+                        td.classList.add('error');
+                        inner.textContent = '↯';
+                        td.dataset.tip = `${col} → ${row} mais pas l'inverse`;
+                        errorCount++;
+                    } else {
+                        td.classList.add('none');
+                        inner.textContent = '·';
+                        td.dataset.tip = `${row} ✗ ${col}`;
+                        noneCount++;
+                    }
+                }
+                td.appendChild(inner);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+
+        // Stats calculation
+        const totalConnections = zones.length * (zones.length - 1);
+        const stats = document.getElementById('stats');
+        stats.innerHTML = `
+            <div class="stat-card info"><div class="value">${zones.length}</div><div class="label">Zones</div></div>
+            <div class="stat-card ok"><div class="value">${validCount}</div><div class="label">Liens valides</div></div>
+            <div class="stat-card ${errorCount > 0 ? 'error' : 'ok'}"><div class="value">${errorCount}</div><div class="label">Erreurs</div></div>
+            <div class="stat-card warn"><div class="value">${totalConnections > 0 ? Math.round(noneCount / totalConnections * 100) : 0}%</div><div class="label">Non connectées</div></div>
+        `;
+
+        const errorList = document.getElementById('error-list');
+        const uniqueErrors = [...new Set(errors)];
+        if (uniqueErrors.length === 0) {
+            errorList.innerHTML = '<div class="no-errors">Toutes les adjacences sont symétriques.</div>';
+        } else {
+            errorList.innerHTML = uniqueErrors.map(e => `<div class="error-item">${e}</div>`).join('');
+        }
+    }
+
+    // Handlers
+    document.getElementById('file-input').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        document.getElementById('file-name-display').textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try { buildMatrix(JSON.parse(ev.target.result)); }
+            catch { alert('Fichier JSON invalide.'); }
+        };
+        reader.readAsText(file);
+    });
+
+    const uploadZone = document.querySelector('.upload-zone');
+    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.style.borderColor = 'var(--accent)'; });
+    uploadZone.addEventListener('dragleave', () => { uploadZone.style.borderColor = ''; });
+    uploadZone.addEventListener('drop', e => {
+        e.preventDefault();
+        uploadZone.style.borderColor = '';
+        const file = e.dataTransfer.files[0];
+        if (!file) return;
+        document.getElementById('file-name-display').textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try { buildMatrix(JSON.parse(ev.target.result)); }
+            catch { alert('Fichier JSON invalide.'); }
+        };
+        reader.readAsText(file);
+    });
+
+    // Start
+    window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
