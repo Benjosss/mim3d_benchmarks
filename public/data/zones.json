@@ -2,6 +2,7 @@
   {
     "name": "floor-1",
     "path": "models/-1_floor_aisle_b_sized.glb",
+    "impostorPath" : "models/impostors/-1_floor_aisle_b_sized.glb",
     "type": "floor",
     "adjacentZoneNames": ["floor0", "stairs0to-1", "floor0ground"],
     "triggerBox": {
@@ -12,6 +13,7 @@
   {
     "name": "floor0",
     "path": "models/0_floor_aisle_b_sized.glb",
+    "impostorPath" : "models/impostors/0_floor_aisle_b_sized.glb",
     "type": "floor",
     "adjacentZoneNames": ["stairs1to0", "floor1", "floor-1", "floor0ground", "stairs0to-1"],
     "triggerBox": {
@@ -22,6 +24,7 @@
   {
     "name": "floor0ground",
     "path": "models/0_floor_aisle_b_ground_sized.glb",
+    "impostorPath" : "models/impostors/0_floor_aisle_b_ground_sized.glb",
     "type": "floor",
     "adjacentZoneNames": ["floor0", "floor1", "floor-1"],
     "triggerBox": {
@@ -32,6 +35,7 @@
   {
     "name": "floor1",
     "path": "models/1_floor_aisle_b_sized.glb",
+    "impostorPath" : "models/impostors/1_floor_aisle_b_sized.glb",
     "type": "floor",
     "adjacentZoneNames": ["stairs2to1", "floor2", "floor0", "floor0ground", "stairs1to0"],
     "triggerBox": {
@@ -42,6 +46,7 @@
   {
     "name": "floor2",
     "path": "models/2_floor_aisle_b_sized.glb",
+    "impostorPath" : "models/impostors/2_floor_aisle_b_sized.glb",
     "type": "floor",
     "adjacentZoneNames": ["stairs3to2", "floor1", "floor3", "stairs2to1"],
     "triggerBox": {
@@ -52,6 +57,7 @@
   {
     "name": "floor3",
     "path": "models/3_floor_aisle_b_sized.glb",
+    "impostorPath" : "models/impostors/3_floor_aisle_b_sized.glb",
     "type": "floor",
     "adjacentZoneNames": ["floor2", "stairs3to2"],
     "triggerBox": {
@@ -62,6 +68,7 @@
   {
     "name": "stairs3to2",
     "path": "models/3_to_2_stair_1_sized.glb",
+    "impostorPath" : "models/impostors/3_to_2_stair_1_sized.glb",
     "type": "floor",
     "adjacentZoneNames": ["floor3", "floor2", "stairs2to1"],
     "triggerBox": {
@@ -72,6 +79,7 @@
   {
     "name": "stairs2to1",
     "path": "models/2_to_1_stair_1_sized.glb",
+    "impostorPath" : "models/impostors/2_to_1_stair_1_sized.glb",
     "type": "floor",
     "adjacentZoneNames": ["floor2", "floor1", "stairs3to2", "stairs1to0"],
     "triggerBox": {
@@ -82,6 +90,7 @@
   {
     "name": "stairs1to0",
     "path": "models/1_to_0_stair_1_sized.glb",
+    "impostorPath" : "models/impostors/1_to_0_stair_1_sized.glb",
     "type": "floor",
     "adjacentZoneNames": ["floor0", "floor1", "stairs2to1"],
     "triggerBox": {
@@ -92,6 +101,7 @@
   {
     "name": "stairs0to-1",
     "path": "models/0_to_-1_stair_1_sized.glb",
+    "impostorPath" : "models/impostors/0_to_-1_stair_1_sized.glb",
     "type": "floor",
     "adjacentZoneNames": ["floor0", "floor-1"],
     "triggerBox": {

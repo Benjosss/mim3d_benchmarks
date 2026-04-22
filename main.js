@@ -28,7 +28,7 @@ const CONFIG = {
 // ================= DÉFINITION DES ZONES =================
 let ZONES = [];
 
-const parser = new jsonParser("data/data.json");
+const parser = new jsonParser("data/zones.json");
 const jsonData = await parser.fetchJSONData();
 
 if (!jsonData) {
@@ -39,6 +39,7 @@ if (!jsonData) {
             new Zone({
                 name: zone.name,
                 path: zone.path,
+                impostorPath: zone.impostorPath,
                 adjacentZoneNames: zone.adjacentZoneNames || [],
                 type: zone.type,
                 triggerBox: new THREE.Box3(

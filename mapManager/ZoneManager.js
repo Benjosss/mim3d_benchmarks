@@ -74,19 +74,16 @@ export class ZoneManager {
 
         // Recherche dans quelle zone adjacente il se trouve
         for (const adjName of this.currentZone.adjacentZoneNames) {
-            const adjZone = this.zones.get(adjName);
-            if (!adjZone) continue;
-
-            if (adjZone.isPointInside(playerPosition)) {
-                this._triggerTransition(adjZone);
+            const zone = this.zones.get(adjName);
+            if (zone?.isPointInside(playerPosition)) {
+                this._triggerTransition(zone);
                 return;
             }
         }
 
         // Recherche dans toutes les zones chargées
         for (const [, zone] of this.zones) {
-            if (zone === this.currentZone) continue;
-            if (zone.isLoaded && zone.isPointInside(playerPosition)) {
+            if (zone !== this.currentZone && zone.isLoaded && zone.isPointInside(playerPosition)) {
                 this._triggerTransition(zone);
                 return;
             }
@@ -143,113 +140,116 @@ export class ZoneManager {
     // CHARGEMENT ET DÉCHARGEMENT
     // =====================================================
 
-    /**
-     * Charge une zone immédiatement
-     * @param zone
-     * @returns {Promise<void>}
-     * @private
-     */
-    async _loadZone(zone) {
-        if (zone.isLoaded || zone.isLoading) return; // Zone déjà traitée ou en cours de traitement
-        await zone.load(this.loader); // Chargement de la zone
-        this.managedZones.add(zone.name); // Ajout aux zones managées (en cours de chargement ou chargées)
-    }
+    async _manageImpostorVisibility(zone, visible) {
+        if (visible) {
+            if (!zone.isImpostorLoaded) {
+                await zone.loadImpostor(this.loader);
+            }
 
-    /**
-     * Ajoute des zones à la file d'attente de chargement en arrière-plan.
-     * Zones chargées une par une.
-     * @param zone
-     * @private
-     */
-    _queueAdjacentZones(zone) {
-        for (const adjacentName of zone.adjacentZoneNames) {
-            const adjacentZone = this.zones.get(adjacentName);
-            if (!adjacentZone) continue; // Zone introuvable
-            if (adjacentZone.isLoaded || adjacentZone.isLoading) continue; // Zone déjà traitée ou en cours de chargement
+            if (zone.impostorContent && !zone.impostorContent.parent) {
+                this.scene.add(zone.impostorContent);
+            }
 
-            if (this._loadQueue.includes(adjacentZone)) continue; // Zone déjà dans la file d'attente
+            zone.impostorContent.visible = true;
 
-            this._loadQueue.push(adjacentZone); // Ajout à la file d'attente
-            console.log(`Zone ${adjacentName} ajoutée à la file d'attente de préchargement.`);
-        }
-        this._processQueue(); // Traitement de la file
-    }
-
-    /**
-     * Traite la file d'attente de chargement en arrière-plan une zone à la fois.
-     * Ne bloque pas la boucle de rendu
-     * @returns {Promise<void>}
-     * @private
-     */
-    async _processQueue() {
-        if (this._isProcessingQueue) return; // File d'attente déjà en cours de traitement
-        this._isProcessingQueue = true; // Début du traitement
-
-        while (this._loadQueue.length > 0) {
-            const zone = this._loadQueue.shift();
-
-            // Laisse le contrôle au navigateur entre chaque chargement
-            await new Promise(resolve => setTimeout(resolve, 0));
-
-            if (!zone.isLoaded && !zone.isLoading) {
-                await this._loadZone(zone); // Chargement de la zone
-
-                // Affichage de la zone si elle est adjacente à la zone courante
-                if (this.currentZone?.adjacentZoneNames.includes(zone.name)) {
-                    this._showZone(zone);
-                    // Mise à jour différée
-                    this._scheduleColliderRebuild();
-                }
+        } else {
+            if (zone.impostorContent) {
+                zone.impostorContent.visible = false;
             }
         }
-
-        this._isProcessingQueue = false; // Fin du traitement
     }
 
-    /**
-     * Masque les zones qui ne sont plus adjacentes à la zone actuelle et décharge les zones les plus éloignées.
-     * Non bloquant.
-     * @param previousZone
-     * @private
-     */
     _scheduleUnloadFarZones(previousZone) {
-        // Traitement différent (non bloquant)
-        setTimeout(() => {
-            if (!previousZone) return; // Zone précédente introuvable
+        setTimeout(async () => {
+            if (!this.currentZone) return;
 
-            // Garde en mémoire les noms des zones
-            const keepNames = new Set([
+            // Zones en être en HD (actuelle + voisines directes)
+            const highDetailNames = new Set([
                 this.currentZone.name,
                 ...this.currentZone.adjacentZoneNames,
             ]);
 
             for (const [name, zone] of this.zones) {
-                if (keepNames.has(name)) continue;
-                if (!zone.isLoaded && !zone.isVisible) continue;
+                const isHDNeeded = highDetailNames.has(name);
 
-                // Masquer les zones adjacentes à la précédente, mais pas à l'actuelle
-                if (zone.isVisible) {
-                    zone.hide(this.scene);
-                }
+                if (isHDNeeded) {
+                    // --- MODE HAUTE DÉFINITION ---
+                    if (zone.isLoaded) {
+                        this._showZone(zone); // Affiche le HD et cache l'imposteur
+                    }
+                    // Si pas chargé, le queueManager s'en occupera
+                } else {
+                    // --- MODE IMPOSTEUR ---
+                    if (zone.isVisible) {
+                        zone.hide(this.scene); // Cache le HD si présent
+                    }
 
-                // Déchargement complètement les zones vraiment loin
-                const wasAdjacentToPrevious = previousZone.adjacentZoneNames.includes(name);
-                if (!wasAdjacentToPrevious) {
-                    zone.unload(this.scene);
-                    this.managedZones.delete(name);
+                    // On affiche l'imposteur
+                    if (zone.impostorPath) {
+                        await this._manageImpostorVisibility(zone, true);
+                    }
+
+                    // On décharge la mémoire HD si la zone est loin
+                    const wasAdjacent = previousZone?.adjacentZoneNames.includes(name);
+                    if (!wasAdjacent) {
+                        zone.unload(this.scene); // Ne videra que le HD avec la modif ci-dessus
+                        this.managedZones.delete(name);
+                    }
                 }
             }
 
-            // Mise à jour après nettoyage
             this._scheduleColliderRebuild();
-
-        }, 100); // Délais de 100ms
+        }, 100);
     }
 
     _showZone(zone) {
-        if (!zone.isLoaded) return; // La zone n'est pas chargée
-        zone.show(this.scene); // Affichage de la zone
+        if (!zone.isLoaded) return;
 
+        zone.show(this.scene);
+
+        if (zone.impostorContent) {
+            zone.impostorContent.visible = false;
+        }
+    }
+
+    async _loadZone(zone) {
+        if (zone.isLoaded || zone.isLoading) return;
+        await zone.load(this.loader);
+        this.managedZones.add(zone.name);
+    }
+
+    _queueAdjacentZones(zone) {
+        for (const name of zone.adjacentZoneNames) {
+            const z = this.zones.get(name);
+            if (!z || z.isLoaded || z.isLoading) continue;
+
+            if (!this._loadQueue.includes(z)) {
+                this._loadQueue.push(z);
+            }
+        }
+        this._processQueue();
+    }
+
+    async _processQueue() {
+        if (this._isProcessingQueue) return;
+        this._isProcessingQueue = true;
+
+        while (this._loadQueue.length > 0) {
+            const zone = this._loadQueue.shift();
+
+            await new Promise(r => setTimeout(r, 0));
+
+            if (!zone.isLoaded) {
+                await this._loadZone(zone);
+
+                if (this.currentZone?.adjacentZoneNames.includes(zone.name)) {
+                    this._showZone(zone);
+                    this._scheduleColliderRebuild();
+                }
+            }
+        }
+
+        this._isProcessingQueue = false;
     }
 
     // =====================================================

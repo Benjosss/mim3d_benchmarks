@@ -7,10 +7,15 @@ export class Zone {
     constructor(config) {
         this.name = config.name;                                    // Nom de la zone
         this.modelPath = config.path;                               // Chemin du fichier .glb de la zone
+        this.impostorPath = config.impostorPath;
         this.adjacentZoneNames = config.adjacentZoneNames ?? [];    // Tableau des noms des zones adjacentes
         this.triggerBox = config.triggerBox;                    // Trigger Box de la zone
+
         this.content = null;                                        // THREE.Group
+        this.impostorContent = null;
+
         this.isLoaded = false;                                      // Status zone chargée ou non
+        this.isImpostorLoaded = false;
         this.isLoading = false;                                     // Status zone en chargement ou non
         this.isVisible = false;                                     // Status zone visible ou non
     }
@@ -62,6 +67,31 @@ export class Zone {
         }
     }
 
+    async loadImpostor(loader) {
+        if (this.isImpostorLoaded || !this.impostorPath) return;
+
+        const gltf = await loader.loadAsync(this.impostorPath);
+        this.impostorContent = gltf.scene;
+
+        this.impostorContent.traverse(child => {
+            if (child.isMesh) {
+                // child.material.color.set(0xff0000);
+                child.castShadow = false;
+                child.receiveShadow = true;
+            }
+        });
+
+        // alignement avec la vraie zone
+        if (this.content) {
+            this.impostorContent.position.copy(this.content.position);
+            this.impostorContent.rotation.copy(this.content.rotation);
+            this.impostorContent.scale.copy(this.content.scale);
+        }
+
+        this.impostorContent.visible = false;
+        this.isImpostorLoaded = true;
+    }
+
     /**
      * Ajoute le contenu à la scène et le rend visible.
      * @param scene THREE.Scene
@@ -83,7 +113,6 @@ export class Zone {
         scene.remove(this.content); // Retrait du modèle de la scène
         this.isVisible = false; // Status non visible
         console.log(`Zone ${this.name} cachée.`);
-
     }
 
     /**
@@ -91,9 +120,11 @@ export class Zone {
      * @param scene THREE.Scene
      */
     unload(scene) {
-        if (!this.isLoaded) return; // La zone n'est pas chargée
-        this.hide(scene); // Retrait du modèle de la scène
+        if (!this.isLoaded) return; // On ne décharge que si le HD est là
 
+        this.hide(scene); // On retire le modèle HD de la scène
+
+        // On vide uniquement le contenu lourd (Meshes HD + BVH)
         this.content.traverse(child => {
             if (child.isMesh) {
                 // Libération de la mémoire BVH
@@ -102,9 +133,7 @@ export class Zone {
                 }
                 child.geometry.dispose();
                 if (Array.isArray(child.material)) {
-                    child.material.forEach(material => {
-                        this._disposeMaterial(material);
-                    });
+                    child.material.forEach(m => this._disposeMaterial(m));
                 } else {
                     this._disposeMaterial(child.material);
                 }
@@ -125,12 +154,9 @@ export class Zone {
      * @private
      */
     _disposeMaterial(material) {
-        // Libère toutes les textures du material
         for (const key of Object.keys(material)) {
             const value = material[key];
-            if (value && typeof value === 'object' && 'isTexture' in value) {
-                value.dispose();
-            }
+            if (value && value.isTexture) value.dispose();
         }
         material.dispose();
     }
