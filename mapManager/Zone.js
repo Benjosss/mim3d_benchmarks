@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 export class Zone {
+    DEBUG_IMPOSTORS_OPACITY = true;
 
     /**
      * Constructeur de la classe Zone permettant de construire la hierarchie des zones
@@ -77,9 +78,11 @@ export class Zone {
 
         this.impostorContent.traverse(child => {
             if (child.isMesh) {
-                child.material.format = THREE.RGBAFormat;
-                child.material.transparent = true;
-                child.material.opacity = 0.5;
+                if (this.DEBUG_IMPOSTORS_OPACITY) {
+                    child.material.format = THREE.RGBAFormat;
+                    child.material.transparent = true;
+                    child.material.opacity = 0.5;
+                }
                 child.castShadow = false;
                 child.receiveShadow = true;
             }
