@@ -1,3 +1,5 @@
+import * as THREE from "three";
+
 export class Zone {
 
     /**
@@ -75,7 +77,9 @@ export class Zone {
 
         this.impostorContent.traverse(child => {
             if (child.isMesh) {
-                // child.material.color.set(0xff0000);
+                child.material.format = THREE.RGBAFormat;
+                child.material.transparent = true;
+                child.material.opacity = 0.5;
                 child.castShadow = false;
                 child.receiveShadow = true;
             }
