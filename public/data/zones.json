@@ -15,10 +15,21 @@
     "path": "models/0_floor_aisle_b_sized.glb",
     "impostorPath" : "models/impostors/0_floor_aisle_b_sized.glb",
     "type": "floor",
-    "adjacentZoneNames": ["stairs1to0_1", "floor1", "floor-1", "floor0ground", "stairs0to-1_1", "allstairs_2", "allstairs_3"],
+    "adjacentZoneNames": ["stairs1to0_1", "floor1", "floor-1", "floor0ground", "stairs0to-1_1", "allstairs_2", "allstairs_3", "floor0hall"],
     "triggerBox": {
       "min": [70.925, 2.651, -75.214],
       "max": [89.943, 7.642, -0.082]
+    }
+  },
+  {
+    "name": "floor0_a",
+    "path": "models/0_floor_aisle_a_sized.glb",
+    "impostorPath" : "models/impostors/imp_0_floor_aisle_a_sized.glb",
+    "type": "floor",
+    "adjacentZoneNames": ["floor0hall"],
+    "triggerBox": {
+      "min": [5.963, 3.460, -76.234],
+      "max": [56.385, 7.649, -11.819]
     }
   },
   {
@@ -26,10 +37,21 @@
     "path": "models/0_floor_aisle_b_ground_sized.glb",
     "impostorPath" : "models/impostors/0_floor_aisle_b_ground_sized.glb",
     "type": "floor",
-    "adjacentZoneNames": ["floor0", "allstairs_2", "floor1", "floor-1", "allstairs_3"],
+    "adjacentZoneNames": ["floor0", "allstairs_2", "floor1", "floor-1", "allstairs_3", "floor0hall"],
     "triggerBox": {
       "min": [0,0,0],
       "max": [0,0,0]
+    }
+  },
+  {
+    "name": "floor0hall",
+    "path": "models/0_floor_hall_sized.glb",
+    "impostorPath" : "models/impostors/imp_0_floor_hall_sized.glb",
+    "type": "floor",
+    "adjacentZoneNames": ["floor0", "floor0ground", "floor0_a"],
+    "triggerBox": {
+      "min": [56.119, -0.100, -35.378],
+      "max": [71.158, 6.943, -27.871]
     }
   },
   {
@@ -37,10 +59,21 @@
     "path": "models/1_floor_aisle_b_sized.glb",
     "impostorPath" : "models/impostors/1_floor_aisle_b_sized.glb",
     "type": "floor",
-    "adjacentZoneNames": ["stairs2to1_1", "floor2", "floor0", "floor0ground", "stairs1to0_1", "allstairs_2", "allstairs_3"],
+    "adjacentZoneNames": ["stairs2to1_1", "floor2", "floor0", "floor0ground", "stairs1to0_1", "allstairs_2", "allstairs_3", "floor1hall"],
     "triggerBox": {
       "min": [71.049, 6.443, -75.211],
       "max": [89.923, 11, -0.106]
+    }
+  },
+  {
+    "name": "floor1hall",
+    "path": "models/1_floor_hall_sized.glb",
+    "impostorPath" : "models/impostors/imp_1_floor_hall_sized.glb",
+    "type": "floor",
+    "adjacentZoneNames": ["floor1"],
+    "triggerBox": {
+      "min": [56.119, 7.020, -35.378],
+      "max": [71.158, 9.088, -27.871]
     }
   },
   {
@@ -48,10 +81,21 @@
     "path": "models/2_floor_aisle_b_sized.glb",
     "impostorPath" : "models/impostors/2_floor_aisle_b_sized.glb",
     "type": "floor",
-    "adjacentZoneNames": ["stairs3to2_1", "floor1", "floor3", "stairs2to1_1", "allstairs_2", "allstairs_3"],
+    "adjacentZoneNames": ["stairs3to2_1", "floor1", "floor3", "stairs2to1_1", "allstairs_2", "allstairs_3", "floor2hall"],
     "triggerBox": {
       "min": [70.950, 11.075, -75.211],
       "max": [89.923, 14.553, -0.105]
+    }
+  },
+  {
+    "name": "floor2hall",
+    "path": "models/2_floor_hall_sized.glb",
+    "impostorPath" : "models/impostors/imp_2_floor_hall_sized.glb",
+    "type": "floor",
+    "adjacentZoneNames": ["floor2"],
+    "triggerBox": {
+      "min": [56.119, 10.560, -35.378],
+      "max": [71.158, 12.528, -27.871]
     }
   },
   {
