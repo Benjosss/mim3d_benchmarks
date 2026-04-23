@@ -60,6 +60,17 @@ export class ZoneManager {
 
         // Chargement des zones adjacentes en arrière-plan (non bloquant)
         this._queueAdjacentZones(startZone);
+
+        for (const [name, zone] of this.zones) {
+            if (name !== this.currentZone.name) {
+                if (zone.impostorPath) {
+                    this._manageImpostorVisibility(zone, true).catch((err) => {
+                        console.error("Impossible d'afficher les imposteurs : ", err);
+                    });
+                }
+            }
+
+        }
     }
 
 
@@ -151,10 +162,11 @@ export class ZoneManager {
             }
 
             zone.impostorContent.visible = true;
-
+            console.log(`👁️ Imposteur de  ${zone.name} affiché`)
         } else {
             if (zone.impostorContent) {
                 zone.impostorContent.visible = false;
+                console.log(`🌑 Imposteur de  ${zone.name} caché`)
             }
         }
     }
@@ -307,11 +319,23 @@ export class ZoneManager {
                 loaded: zone.isLoaded ? "✅" : "❌",
                 loading: zone.isLoading ? "⏳" : "⚪",
                 visible: zone.isVisible ? "👁️" : "🌑",
+                impostor: zone.impostorContent?.visible ? "👁️" : "🌑",
                 colliders: zone.colliderMeshes?.length ?? 0,
                 current: isCurrent ? "⭐" : "❌",
             });
         }
         console.table(status);
         return status;
+    }
+
+    checkImpostorsVisibility() {
+        for (const [name, zone] of this.zones) {
+            if (zone.isVisible && zone.impostorContent?.visible) {
+                console.error(`Erreur imposteur zone : ${name}`)
+            }
+            if (!zone.isVisible && !zone.impostorContent?.visible) {
+                console.error(`Erreur imposteur zone : ${name}`)
+            }
+        }
     }
 }

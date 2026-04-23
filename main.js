@@ -507,6 +507,7 @@ function animate() {
 
         // ZoneManager : détection de transition à chaque frame
         zoneManager.update(camera.position);
+        zoneManager.checkImpostorsVisibility();
 
         if (CONFIG.debugCapsule) {
             capsuleHelper.position.set(
