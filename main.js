@@ -14,10 +14,12 @@ THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
+const DEBUG_BBOX_COLOR = true;
+
 // ================= CONFIG =================
 const CONFIG = {
-    startZone: 'floor2',
-    spawnPoint: new THREE.Vector3(85, 13, -3.1),
+    startZone: 'floor0hall',
+    spawnPoint: new THREE.Vector3(65, 5.5, -32),
     playerRadius: 0.4,
     playerHeight: 1.3,
     moveSpeed: 6,
@@ -222,10 +224,12 @@ const colliderMeshes = [];
 
 const zoneManager = new ZoneManager({scene, loader: gltfLoader, colliderMeshes});
 ZONES.forEach(zone => zoneManager.registerZone(zone));
-ZONES.forEach(zone => {
-    const helper = new THREE.Box3Helper(zone.triggerBox, 0xffff00);
-    scene.add(helper);
-});
+if (DEBUG_BBOX_COLOR) {
+    ZONES.forEach(zone => {
+        const helper = new THREE.Box3Helper(zone.triggerBox, 0xffff00);
+        scene.add(helper);
+    });
+}
 
 // Chargement initial — seule la zone de départ est bloquante
 document.getElementById('loading-bar').style.width = '30%';
