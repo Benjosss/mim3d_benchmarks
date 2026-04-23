@@ -35,11 +35,11 @@ export class Zone {
             const gltf = await loader.loadAsync(this.modelPath); // Chargement du modèle
             this.content = gltf.scene;
 
-            // Préparation des meshs invisibles pour le moment
-            this.content.visible = false; // Meshs invisibles
+            // Préparation des meshes invisibles pour le moment
+            this.content.visible = false; // Meshes invisibles
             this.colliderMeshes = [];
 
-            // Propriétés des meshs
+            // Propriétés des meshes
             this.content.traverse(child => {
                 if (child.isMesh) {
                     // Ombrages
