@@ -22,7 +22,7 @@ const CONFIG = {
     spawnPoint: new THREE.Vector3(65, 5.5, -32),
     playerRadius: 0.4,
     playerHeight: 1.3,
-    moveSpeed: 6,
+    moveSpeed: 8,
     gravity: 30,
     debugCapsule: false,
 };
@@ -531,6 +531,8 @@ function animate() {
     stats.update();
     document.getElementById('stats_nb_zones').textContent = "Nombres de zones chargées : " + zoneManager.managedZones.size.toString();
     document.getElementById('current_zone').textContent = "Zone actuelle : " + zoneManager.currentZone?.name ?? 'aucune';
+
+    // console.log(renderer.info.render.calls);
     renderer.render(scene, camera);
 }
 

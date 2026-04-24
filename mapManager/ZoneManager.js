@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 export class ZoneManager {
 
     constructor({scene, loader, colliderMeshes, unloadDistance = 3}) {
@@ -48,6 +50,11 @@ export class ZoneManager {
             return;
         }
 
+        if (startZone.type !== "floor") {
+            console.error("La zone de départ doit être de type \"floor\".");
+            return;
+        }
+
         console.log(`Initialisation sur la zone ${startZoneName}.`);
 
         // Chargement en priorité de la zone de spawn (bloquant)
@@ -81,24 +88,62 @@ export class ZoneManager {
     _detectZoneChange(playerPosition) {
         if (!this.currentZone) return;
 
-        if (this.currentZone.isPointInside(playerPosition)) return; // Le joueur est dans sa zone actuelle
+        // Calcule le volume d'une Box3
+        const boxVolume = (box) => {
+            const s = new THREE.Vector3();
+            box.getSize(s);
+            return s.x * s.y * s.z;
+        };
 
-        // Recherche dans quelle zone adjacente il se trouve
-        for (const adjName of this.currentZone.adjacentZoneNames) {
-            const zone = this.zones.get(adjName);
-            if (zone?.isPointInside(playerPosition)) {
-                this._triggerTransition(zone);
-                return;
-            }
-        }
-
-        // Recherche dans toutes les zones chargées
+        // Collecte toutes les zones qui contiennent le joueur
+        const candidates = [];
         for (const [, zone] of this.zones) {
-            if (zone !== this.currentZone && zone.isLoaded && zone.isPointInside(playerPosition)) {
-                this._triggerTransition(zone);
-                return;
+            if (zone.isPointInside(playerPosition)) {
+                candidates.push(zone);
             }
         }
+
+        // Masque les zones furniture dont le joueur est sorti
+        for (const [, zone] of this.zones) {
+            if (zone.type === 'furniture' && zone.isVisible && !zone.isPointInside(playerPosition)) {
+                zone.hide(this.scene);
+            }
+        }
+
+        if (candidates.length === 0) return; // Hors de toute zone connue
+
+        // Trie par volume croissant — la plus petite box en premier
+        candidates.sort((a, b) => boxVolume(a.triggerBox) - boxVolume(b.triggerBox));
+
+        // Si la zone la plus petite est du mobilier (type "furniture") :
+        // → on la charge/affiche en arrière-plan
+        // → mais la zone courante devient la 2ème plus petite (le sol/couloir)
+        const smallest = candidates[0];
+        let navigationZone;
+
+        if (smallest.type === 'furniture') {
+            // Charge le mobilier en arrière-plan sans en faire la zone courante
+            if (!smallest.isLoaded && !smallest.isLoading) {
+                this._loadZone(smallest).then(() => {
+                    this._showZone(smallest);
+                    this._scheduleColliderRebuild();
+                });
+            } else if (smallest.isLoaded && !smallest.isVisible) {
+                this._showZone(smallest);
+            }
+
+            // La zone de navigation est la 2ème plus petite non-furniture
+            navigationZone = candidates.find(z => z.type !== 'furniture');
+        } else {
+            navigationZone = smallest;
+        }
+
+        if (!navigationZone) return;
+
+        // Pas de transition si on est déjà dans la bonne zone de navigation
+        if (navigationZone === this.currentZone) return;
+
+        this._triggerTransition(navigationZone);
     }
 
     // =====================================================
@@ -107,6 +152,7 @@ export class ZoneManager {
 
 
     async _triggerTransition(newZone) {
+
         if (this._transitioning) return; // Transition déjà en cours
         if (newZone === this.currentZone) return; // Zone actuelle
         this._transitioning = true; // Début de la transition
@@ -330,11 +376,13 @@ export class ZoneManager {
 
     checkImpostorsVisibility() {
         for (const [name, zone] of this.zones) {
-            if (zone.isVisible && zone.impostorContent?.visible) {
-                console.error(`Erreur imposteur zone : ${name}`)
-            }
-            if (!zone.isVisible && !zone.impostorContent?.visible) {
-                console.error(`Erreur imposteur zone : ${name}`)
+            if (zone.type === "floor") {
+                if (zone.isVisible && zone.impostorContent?.visible) {
+                    console.error(`Erreur imposteur zone : ${name}`)
+                }
+                if (!zone.isVisible && !zone.impostorContent?.visible) {
+                    console.error(`Erreur imposteur zone : ${name}`)
+                }
             }
         }
     }

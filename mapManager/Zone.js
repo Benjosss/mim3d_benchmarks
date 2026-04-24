@@ -9,10 +9,11 @@ export class Zone {
      */
     constructor(config) {
         this.name = config.name;                                    // Nom de la zone
-        this.modelPath = config.path;                               // Chemin du fichier .glb de la zone
-        this.impostorPath = config.impostorPath;
+        this.modelPath = config.path;                               // Chemin du fichier .glb HD de la zone
+        this.impostorPath = config.impostorPath;                    // Chemin du fichier .glb SD de la zone
         this.adjacentZoneNames = config.adjacentZoneNames ?? [];    // Tableau des noms des zones adjacentes
-        this.triggerBox = config.triggerBox;                    // Trigger Box de la zone
+        this.type = config.type;                                    // Type de zone
+        this.triggerBox = config.triggerBox;                        // Trigger Box de la zone
 
         this.content = null;                                        // THREE.Group
         this.impostorContent = null;
@@ -52,10 +53,12 @@ export class Zone {
                         child.material.map.anisotropy = 16;
                     }
 
-                    // Calcul du BVH en arrière-plan après le chargement.
-                    child.geometry.computeBoundsTree();
-                    child.updateMatrixWorld(true);
-                    this.colliderMeshes.push(child);
+                    if(this.type === "floor"){
+                        // Calcul du BVH en arrière-plan après le chargement.
+                        child.geometry.computeBoundsTree();
+                        child.updateMatrixWorld(true);
+                        this.colliderMeshes.push(child);
+                    }
                 }
             });
 
