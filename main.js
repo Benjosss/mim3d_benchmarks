@@ -42,8 +42,10 @@ if (!jsonData) {
                 name: zone.name,
                 path: zone.path,
                 impostorPath: zone.impostorPath,
-                adjacentZoneNames: zone.adjacentZoneNames || [],
+                physics: zone.physics,
                 type: zone.type,
+                description: zone.description,
+                adjacentZoneNames: zone.adjacentZoneNames || [],
                 triggerBox: new THREE.Box3(
                     new THREE.Vector3(...zone.triggerBox.min),
                     new THREE.Vector3(...zone.triggerBox.max)
@@ -251,6 +253,31 @@ console.log(`⏱️ Temps de chargement total : ${((t1 - t0) / 1000).toFixed(3)}
 const statsHTML = document.getElementById('stats_time');
 statsHTML.textContent = res_load;
 
+function printHierarchy() {
+    const zones = zoneManager.zones;
+
+    let types = [];
+    let sort = [];
+    zones.forEach((zone) => {
+        if(!types.includes(zone.type)) {
+            types.push(zone.type);
+        }
+    })
+    types.forEach((type) => {
+        zones.forEach((zone) => {
+            if(zone.type === type) {
+                sort.push({
+                    name: zone.name,
+                    type: zone.type,
+                    description: zone.description,
+                });
+            }
+        })
+    })
+    console.table(types);
+    console.table(sort);
+}
+
 // ================= INPUT (AZERTY) =================
 const keyMap = {};
 document.addEventListener('keydown', e => keyMap[e.code] = true);
@@ -270,6 +297,10 @@ document.addEventListener('keydown', e => {
     if (e.code === 'F3') {
         e.preventDefault();
         debugColliderMeshes();
+    }
+    if (e.code === 'F4') {
+        e.preventDefault();
+        printHierarchy();
     }
 });
 
@@ -530,7 +561,7 @@ function animate() {
 
     stats.update();
     document.getElementById('stats_nb_zones').textContent = "Nombres de zones chargées : " + zoneManager.managedZones.size.toString();
-    document.getElementById('current_zone').textContent = "Zone actuelle : " + zoneManager.currentZone?.name ?? 'aucune';
+    document.getElementById('current_zone').innerHTML = "Salle actuelle : " + (zoneManager.currentRoom?.name ?? 'aucune') + "<br>" + "Type : " + (zoneManager.currentRoom?.type  ?? "Empty") + "<br>" + "Description : " + (zoneManager.currentRoom?.description  ?? "Empty");
 
     // console.log(renderer.info.render.calls);
     renderer.render(scene, camera);

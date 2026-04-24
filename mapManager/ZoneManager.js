@@ -6,9 +6,10 @@ export class ZoneManager {
         this.scene = scene;                     // Scène
         this.loader = loader;                   // GLTF Loader
         this.unloadDistance = unloadDistance;   // Distance de déchargement en nombre de zones
-        this.colliderMeshes = colliderMeshes; // Tableau partagé avec main.js pour ajouter/retirer les meshs selon les zones visibles
+        this.colliderMeshes = colliderMeshes;   // Tableau partagé avec main.js pour ajouter/retirer les meshs selon les zones visibles
         this.zones = new Map();                 // Zones administrées
-        this.currentZone = null;                // Zone courant de l'utilisateur
+        this.currentZone = null;                // Zone courante de l'utilisateur
+        this.currentRoom = null;                // Salle courante de l'utilisateur
         this.managedZones = new Set();          // Zones dont le chargement est en cours ou terminé
         this._transitioning = false;            // Transition unique
         this._loadQueue = [];                   // File d'attente des chargments
@@ -50,8 +51,8 @@ export class ZoneManager {
             return;
         }
 
-        if (startZone.type !== "floor") {
-            console.error("La zone de départ doit être de type \"floor\".");
+        if (!startZone.physics) {
+            console.error("La zone de départ doit gérer les collisions.");
             return;
         }
 
@@ -103,9 +104,9 @@ export class ZoneManager {
             }
         }
 
-        // Masque les zones furniture dont le joueur est sorti
+        // Masque les zones sans physique dont le joueur est sorti
         for (const [, zone] of this.zones) {
-            if (zone.type === 'furniture' && zone.isVisible && !zone.isPointInside(playerPosition)) {
+            if (!zone.physics && zone.isVisible && !zone.isPointInside(playerPosition)) {
                 zone.hide(this.scene);
             }
         }
@@ -115,13 +116,14 @@ export class ZoneManager {
         // Trie par volume croissant — la plus petite box en premier
         candidates.sort((a, b) => boxVolume(a.triggerBox) - boxVolume(b.triggerBox));
 
-        // Si la zone la plus petite est du mobilier (type "furniture") :
-        // → on la charge/affiche en arrière-plan
-        // → mais la zone courante devient la 2ème plus petite (le sol/couloir)
+        // Si la zone la plus petite est du mobilier (physics = false) :
+        // - on la charge/affiche en arrière-plan
+        // - mais la zone courante devient la 2ème plus petite (le sol/couloir)
         const smallest = candidates[0];
         let navigationZone;
 
-        if (smallest.type === 'furniture') {
+        if (!smallest.physics) {
+            this.currentRoom = smallest;
             // Charge le mobilier en arrière-plan sans en faire la zone courante
             if (!smallest.isLoaded && !smallest.isLoading) {
                 this._loadZone(smallest).then(() => {
@@ -133,9 +135,10 @@ export class ZoneManager {
             }
 
             // La zone de navigation est la 2ème plus petite non-furniture
-            navigationZone = candidates.find(z => z.type !== 'furniture');
+            navigationZone = candidates.find(z => z.physics);
         } else {
             navigationZone = smallest;
+            this.currentRoom = smallest;
         }
 
         if (!navigationZone) return;
@@ -376,7 +379,7 @@ export class ZoneManager {
 
     checkImpostorsVisibility() {
         for (const [name, zone] of this.zones) {
-            if (zone.type === "floor") {
+            if (zone.physics) {
                 if (zone.isVisible && zone.impostorContent?.visible) {
                     console.error(`Erreur imposteur zone : ${name}`)
                 }
